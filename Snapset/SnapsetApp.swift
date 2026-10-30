@@ -32,23 +32,11 @@ struct RootView: View {
                 RoutineListView()
             }
             Tab("History", systemImage: "chart.line.uptrend.xyaxis") {
-                PlaceholderView(title: "History", message: "Past sessions and maxes. Coming in Task 5.")
+                HistoryView()
             }
             Tab("Settings", systemImage: "gearshape") {
                 SettingsView()
             }
-        }
-    }
-}
-
-struct PlaceholderView: View {
-    let title: String
-    let message: String
-
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(title, systemImage: "hammer", description: Text(message))
-                .navigationTitle(title)
         }
     }
 }

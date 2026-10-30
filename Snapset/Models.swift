@@ -108,6 +108,13 @@ final class SetEntry {
         self.loggedAt = loggedAt
     }
 
+    /// Epley formula; a single rep is already the max, so it is returned as is.
+    static func estimatedOneRepMax(weightKg: Double, reps: Int) -> Double {
+        reps <= 1 ? weightKg : weightKg * (1 + Double(reps) / 30)
+    }
+
+    var estimatedOneRepMaxKg: Double { Self.estimatedOneRepMax(weightKg: weightKg, reps: reps) }
+
     /// Most recent set of this exercise across all sessions, used to pre-fill the confirm screen.
     static func latest(of exerciseID: String, in context: ModelContext) -> SetEntry? {
         var descriptor = FetchDescriptor<SetEntry>(
