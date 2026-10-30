@@ -26,7 +26,7 @@ struct RootView: View {
     var body: some View {
         TabView {
             Tab("Workout", systemImage: "figure.strengthtraining.traditional") {
-                PlaceholderView(title: "Workout", message: "Start a session from a routine. Coming in Task 4.")
+                WorkoutView()
             }
             Tab("Routines", systemImage: "list.bullet.rectangle") {
                 RoutineListView()

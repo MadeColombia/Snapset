@@ -64,17 +64,32 @@ final class RoutineItem {
     }
 }
 
+struct PlannedExercise: Codable, Hashable {
+    var exerciseID: String
+    var targetSets: Int
+}
+
 @Model
 final class WorkoutSession {
     var startedAt: Date
     var finishedAt: Date?
-    // Name copied, not linked, so deleting a routine never touches past sessions.
+    // Name and plan copied, not linked, so editing or deleting a routine never touches past sessions.
     var routineName: String?
+    var plan: [PlannedExercise] = []
     @Relationship(deleteRule: .cascade, inverse: \SetEntry.session) var sets: [SetEntry] = []
+
+    static let isActive = #Predicate<WorkoutSession> { $0.finishedAt == nil }
 
     init(startedAt: Date = .now, routineName: String? = nil) {
         self.startedAt = startedAt
         self.routineName = routineName
+    }
+
+    convenience init(routine: Routine) {
+        self.init(routineName: routine.name)
+        plan = routine.items.sorted { $0.order < $1.order }.compactMap { item in
+            item.exercise.map { PlannedExercise(exerciseID: $0.id, targetSets: item.targetSets) }
+        }
     }
 }
 
@@ -92,6 +107,16 @@ final class SetEntry {
         self.reps = reps
         self.loggedAt = loggedAt
     }
+
+    /// Most recent set of this exercise across all sessions, used to pre-fill the confirm screen.
+    static func latest(of exerciseID: String, in context: ModelContext) -> SetEntry? {
+        var descriptor = FetchDescriptor<SetEntry>(
+            predicate: #Predicate { $0.exercise?.id == exerciseID },
+            sortBy: [SortDescriptor(\.loggedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
 }
 
 /// Weights are always stored in kg; the unit only changes display and input.
@@ -100,6 +125,7 @@ enum WeightUnit: String, CaseIterable, Identifiable {
 
     static let poundsPerKg = 2.20462262185
     var id: String { rawValue }
+    var step: Double { self == .kg ? 2.5 : 5 }
 
     func fromKg(_ kg: Double) -> Double { self == .kg ? kg : kg * Self.poundsPerKg }
     func toKg(_ value: Double) -> Double { self == .kg ? value : value / Self.poundsPerKg }
