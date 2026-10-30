@@ -73,10 +73,10 @@ Full acceptance criteria are in [todo.md](todo.md).
 - [ ] Flows, visual system and screens approved; prototype tested with three lifters
 
 ### Phase 2: Usable tracker without photos
-- [ ] Task 2: Project scaffold, data model, seed exercises
-- [ ] Task 3: Create and edit routines
-- [ ] Task 4: Log a workout manually
-- [ ] Task 5: History and personal maxes
+- [x] Task 2: Project scaffold, data model, seed exercises
+- [x] Task 3: Create and edit routines
+- [x] Task 4: Log a workout manually
+- [x] Task 5: History and personal maxes
 
 ### Checkpoint: Tracker
 - [ ] A full workout can be logged and reviewed on a real phone, offline
@@ -91,7 +91,7 @@ Full acceptance criteria are in [todo.md](todo.md).
 
 ### Phase 4: Goal-based coaching
 - [ ] Task 9: Goal onboarding
-- [ ] Task 10: Progression engine
+- [x] Task 10: Progression engine
 - [ ] Task 11: Next-session targets in the workout screen
 
 ### Phase 5: Paid photo logging

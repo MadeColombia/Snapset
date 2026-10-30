@@ -316,12 +316,12 @@ Runs in parallel with Task 1. If the spike ends in "stop", only the photo flows 
 **Description:** A pure function: given goal, exercise equipment and recent sets, return the next target (weight, rep range, sets). Goal sets the rep range (strength 3–6, muscle 6–12, lean 10–15); double progression adds the smallest load step once all sets reach the top of the range, and suggests a reduction after repeated misses.
 
 **Acceptance criteria:**
-- [ ] Deterministic output for a given history and goal
-- [ ] Load steps respect unit and equipment (e.g. 2.5 kg barbell, next dumbbell size)
-- [ ] No history returns a "find your starting weight" target rather than a number
+- [x] Deterministic output for a given history and goal
+- [x] Load steps respect unit and equipment (e.g. 2.5 kg barbell, next dumbbell size)
+- [x] No history returns a "find your starting weight" target rather than a number
 
 **Verification:**
-- [ ] Table-driven unit tests: progress, hold, reduce, no history, unit change
+- [x] Table-driven unit tests: progress, hold, reduce, no history, unit change
 
 **Dependencies:** Task 2
 
