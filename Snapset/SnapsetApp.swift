@@ -33,7 +33,7 @@ struct RootView: View {
             Tab("Routines", systemImage: "list.bullet.rectangle") {
                 RoutineListView()
             }
-            Tab("History", systemImage: "chart.line.uptrend.xyaxis") {
+            Tab("Progress", systemImage: "chart.line.uptrend.xyaxis") {
                 HistoryView()
             }
             Tab("Settings", systemImage: "gearshape") {
