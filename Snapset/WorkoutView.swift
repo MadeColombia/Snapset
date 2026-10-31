@@ -163,7 +163,7 @@ struct SessionView: View {
         var result: [String: Progression.Target] = [:]
         for planned in session.plan {
             guard let exercise = byID[planned.exerciseID] else { continue }
-            result[exercise.id] = Progression.next(goal: goal, equipment: exercise.equipment, unit: unit, sets: planned.targetSets,
+            result[exercise.id] = Progression.next(goal: goal, equipment: exercise.equipment, unit: unit, sets: planned.targetSets, reps: planned.targetReps,
                                                    sessions: Progression.history(of: exercise.id, excluding: current, in: context))
         }
         return result
@@ -208,7 +208,7 @@ private struct TargetRow: View {
     let unit: WeightUnit
 
     var body: some View {
-        let reps = "\(target.reps.lowerBound)–\(target.reps.upperBound) reps"
+        let reps = target.reps.count == 1 ? "\(target.reps.lowerBound) reps" : "\(target.reps.lowerBound)–\(target.reps.upperBound) reps"
         switch (target.change, target.weightKg) {
         case (.start, _), (_, nil):
             Label("Find your starting weight · \(reps)", systemImage: "scope")

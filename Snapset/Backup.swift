@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 /// Every routine and workout as one JSON file, for Export and Import in Settings.
 struct Backup: Codable {
-    struct Item: Codable { var order: Int; var targetSets: Int; var exerciseID: String }
+    struct Item: Codable { var order: Int; var targetSets: Int; var targetReps: Int?; var exerciseID: String }
     struct RoutineRecord: Codable { var name: String; var createdAt: Date; var items: [Item] }
     struct SetRecord: Codable { var exerciseID: String; var weightKg: Double; var reps: Int; var loggedAt: Date }
     struct SessionRecord: Codable {
@@ -23,7 +23,7 @@ struct Backup: Codable {
     init(context: ModelContext) throws {
         routines = try context.fetch(FetchDescriptor<Routine>()).map { routine in
             RoutineRecord(name: routine.name, createdAt: routine.createdAt, items: routine.items.compactMap { item in
-                item.exercise.map { Item(order: item.order, targetSets: item.targetSets, exerciseID: $0.id) }
+                item.exercise.map { Item(order: item.order, targetSets: item.targetSets, targetReps: item.targetReps, exerciseID: $0.id) }
             })
         }
         sessions = try context.fetch(FetchDescriptor<WorkoutSession>()).map { session in
@@ -48,7 +48,7 @@ struct Backup: Codable {
             context.insert(routine)
             for item in record.items {
                 guard let exercise = exercises[item.exerciseID] else { continue }
-                routine.items.append(RoutineItem(order: item.order, targetSets: item.targetSets, exercise: exercise))
+                routine.items.append(RoutineItem(order: item.order, targetSets: item.targetSets, targetReps: item.targetReps, exercise: exercise))
             }
             added += 1
         }

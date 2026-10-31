@@ -54,12 +54,14 @@ final class Routine {
 final class RoutineItem {
     var order: Int
     var targetSets: Int
+    var targetReps: Int?  // nil follows the goal's rep range
     var exercise: Exercise?
     var routine: Routine?
 
-    init(order: Int, targetSets: Int = 3, exercise: Exercise) {
+    init(order: Int, targetSets: Int = 3, targetReps: Int? = nil, exercise: Exercise) {
         self.order = order
         self.targetSets = targetSets
+        self.targetReps = targetReps
         self.exercise = exercise
     }
 }
@@ -67,6 +69,7 @@ final class RoutineItem {
 struct PlannedExercise: Codable, Hashable {
     var exerciseID: String
     var targetSets: Int
+    var targetReps: Int?
 }
 
 @Model
@@ -98,7 +101,7 @@ final class WorkoutSession {
     convenience init(routine: Routine) {
         self.init(routineName: routine.name)
         plan = routine.items.sorted { $0.order < $1.order }.compactMap { item in
-            item.exercise.map { PlannedExercise(exerciseID: $0.id, targetSets: item.targetSets) }
+            item.exercise.map { PlannedExercise(exerciseID: $0.id, targetSets: item.targetSets, targetReps: item.targetReps) }
         }
     }
 }

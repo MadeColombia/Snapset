@@ -41,8 +41,9 @@ enum Progression {
     static let missesBeforeReduce = 2
 
     /// `sessions` holds one exercise's sets per past session, newest first.
-    static func next(goal: Goal, equipment: Equipment, unit: WeightUnit, sets: Int, sessions: [[LoggedSet]]) -> Target {
-        let range = goal.repRange
+    /// Fixed `reps` from the routine replace the goal's range: hit them on every set to add weight.
+    static func next(goal: Goal, equipment: Equipment, unit: WeightUnit, sets: Int, reps: Int? = nil, sessions: [[LoggedSet]]) -> Target {
+        let range = reps.map { $0...$0 } ?? goal.repRange
         let done = sessions.filter { !$0.isEmpty }
         guard let last = done.first, let weight = last.map(\.weightKg).max() else {
             return Target(change: .start, weightKg: nil, reps: range, sets: sets)

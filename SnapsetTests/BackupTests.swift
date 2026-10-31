@@ -17,7 +17,7 @@ struct BackupTests {
         let press = Exercise(id: "machine.chest-press", name: "Chest Press", equipment: .machine)
         source.mainContext.insert(press)
         let routine = Routine(name: "Push")
-        routine.items.append(RoutineItem(order: 0, targetSets: 3, exercise: press))
+        routine.items.append(RoutineItem(order: 0, targetSets: 3, targetReps: 8, exercise: press))
         let done = WorkoutSession(routine: routine)
         done.sets.append(SetEntry(exercise: press, weightKg: 42.5, reps: 10))
         done.finishedAt = .now
@@ -39,6 +39,8 @@ struct BackupTests {
         #expect(sessions.first?.sets.first?.weightKg == 42.5)
         #expect(sessions.first?.startedAt == done.startedAt)
         #expect(try context.fetch(FetchDescriptor<Routine>()).first?.items.first?.exercise?.id == press.id)
+        #expect(try context.fetch(FetchDescriptor<Routine>()).first?.items.first?.targetReps == 8)
+        #expect(sessions.first?.plan.first?.targetReps == 8)
 
         #expect(try backup.restore(into: context) == 0)
         #expect(try context.fetchCount(FetchDescriptor<WorkoutSession>()) == 1)

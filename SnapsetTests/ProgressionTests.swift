@@ -43,6 +43,13 @@ struct ProgressionTests {
         #expect(target.sets == 3)
     }
 
+    @Test func fixedRepsReplaceTheGoalRange() {
+        let hit = Progression.next(goal: .muscle, equipment: .barbell, unit: .kg, sets: 3, reps: 8, sessions: [Self.sets(60, 8, 8, 8)])
+        #expect(hit.change == .increase && hit.reps == 8...8)
+        let short = Progression.next(goal: .muscle, equipment: .barbell, unit: .kg, sets: 3, reps: 8, sessions: [Self.sets(60, 8, 8, 7)])
+        #expect(short.change == .hold)
+    }
+
     @Test func switchingToPoundsLandsOnAPoundStep() throws {
         // 60 kg is 132.3 lb: the nearest 5 lb mark is 130, so the next target is 135 lb.
         let target = Progression.next(goal: .muscle, equipment: .barbell, unit: .lb, sets: 3, sessions: [Self.sets(60, 12, 12, 12)])

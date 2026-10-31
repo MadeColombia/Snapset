@@ -3,6 +3,7 @@ import SwiftData
 
 struct RoutineEditorView: View {
     @Environment(\.modelContext) private var context
+    @AppStorage("goal") private var goal: Goal = .muscle
     @Bindable var routine: Routine
     @State private var showingPicker = false
 
@@ -15,10 +16,25 @@ struct RoutineEditorView: View {
             }
             Section("Exercises") {
                 ForEach(items) { item in
-                    Stepper(value: Bindable(item).targetSets, in: 1...10) {
+                    let reps = item.targetReps.map { "\($0) reps" }
+                        ?? "\(goal.repRange.lowerBound)–\(goal.repRange.upperBound) reps"
+                    DisclosureGroup {
+                        Stepper("\(item.targetSets) sets", value: Bindable(item).targetSets, in: 1...10)
+                        // Below 1 goes back to following the goal's range.
+                        Stepper {
+                            Text(item.targetReps == nil ? "Goal range · \(reps)" : reps)
+                        } onIncrement: {
+                            item.targetReps = min(30, item.targetReps.map { $0 + 1 } ?? goal.repRange.lowerBound)
+                        } onDecrement: {
+                            item.targetReps = item.targetReps.flatMap { $0 > 1 ? $0 - 1 : nil }
+                        }
+                        if item.targetReps != nil {
+                            Button("Use goal range") { item.targetReps = nil }
+                        }
+                    } label: {
                         VStack(alignment: .leading) {
                             Text(item.exercise?.name ?? "Unknown exercise")
-                            Text("\(item.targetSets) sets").font(.subheadline).foregroundStyle(.secondary)
+                            Text("\(item.targetSets) sets · \(reps)").font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
                 }
