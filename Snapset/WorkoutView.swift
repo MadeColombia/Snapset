@@ -29,28 +29,66 @@ struct WorkoutView: View {
 struct StartWorkoutView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Routine.createdAt) private var routines: [Routine]
+    @State private var draft: Routine?
+    @State private var editingDraft = false
 
     var body: some View {
-        List(routines) { routine in
-            Button {
-                context.insert(WorkoutSession(routine: routine))
-                try? context.save()
-            } label: {
-                VStack(alignment: .leading) {
-                    Text(routine.name.isEmpty ? "Untitled routine" : routine.name).font(.headline)
-                    Text("\(routine.items.count) exercises").font(.subheadline).foregroundStyle(.secondary)
+        List {
+            ForEach(routines) { routine in
+                Button {
+                    context.insert(WorkoutSession(routine: routine))
+                    try? context.save()
+                } label: {
+                    VStack(alignment: .leading) {
+                        Text(routine.name.isEmpty ? "Untitled routine" : routine.name).font(.headline)
+                        Text("\(routine.items.count) exercises").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }
+                .tint(.primary)
+                .disabled(routine.items.isEmpty)
+            }
+            if !routines.isEmpty {
+                Section {
+                    Button("New routine", systemImage: "plus.circle.fill", action: newRoutine)
                 }
             }
-            .tint(.primary)
-            .disabled(routine.items.isEmpty)
         }
         .overlay {
             if routines.isEmpty {
-                ContentUnavailableView("No routines", systemImage: "list.bullet.rectangle",
-                                       description: Text("Create a routine in the Routines tab, then start it here."))
+                ContentUnavailableView {
+                    Label("No routines", systemImage: "list.bullet.rectangle")
+                } description: {
+                    Text("Create a routine to plan the exercises for a workout day, then start it here.")
+                } actions: {
+                    Button("New routine", action: newRoutine).buttonStyle(.borderedProminent)
+                }
             }
         }
         .navigationTitle("Start workout")
+        .sheet(isPresented: $editingDraft, onDismiss: discardEmptyDraft) {
+            if let draft {
+                NavigationStack {
+                    RoutineEditorView(routine: draft)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) { Button("Done") { editingDraft = false } }
+                        }
+                }
+            }
+        }
+    }
+
+    private func newRoutine() {
+        let routine = Routine(name: "New routine")
+        context.insert(routine)
+        draft = routine
+        editingDraft = true
+    }
+
+    /// Same rule as the Routines tab: a routine closed with no exercises is thrown away.
+    private func discardEmptyDraft() {
+        if let draft, draft.items.isEmpty { context.delete(draft) }
+        try? context.save()
+        draft = nil
     }
 }
 
@@ -96,8 +134,13 @@ struct SessionView: View {
         .toolbar {
             Button("Finish") { confirmingFinish = true }
         }
-        .confirmationDialog("Finish this workout?", isPresented: $confirmingFinish, titleVisibility: .visible) {
-            Button(session.sets.isEmpty ? "Discard empty workout" : "Finish workout", role: session.sets.isEmpty ? .destructive : nil, action: finish)
+        // An alert, not a confirmationDialog: on iOS 26+ the dialog pops over the toolbar button instead of centering.
+        .alert(session.sets.isEmpty ? "Discard this workout?" : "Finish this workout?", isPresented: $confirmingFinish) {
+            Button("Cancel", role: .cancel) {}
+            Button(session.sets.isEmpty ? "Discard" : "Finish", role: session.sets.isEmpty ? .destructive : nil, action: finish)
+        } message: {
+            Text(session.sets.isEmpty ? "No sets were logged, so nothing will be saved."
+                                      : "\(session.sets.count) sets will be saved to your history.")
         }
         .sheet(item: $logging) { exercise in
             // The target pre-fills the first set; later sets repeat what was just lifted.

@@ -34,6 +34,12 @@ struct RoutineListView: View {
             }
             .navigationTitle("Routines")
             .navigationDestination(for: Routine.self) { RoutineEditorView(routine: $0) }
+            .onChange(of: path) { old, new in
+                // A routine left with no exercises can't be started, so going back throws it away.
+                for routine in old where !new.contains(routine) && routine.items.isEmpty {
+                    context.delete(routine)
+                }
+            }
             .toolbar {
                 Button("New routine", systemImage: "plus", action: addRoutine)
             }
