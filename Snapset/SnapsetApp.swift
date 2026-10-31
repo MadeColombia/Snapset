@@ -23,6 +23,8 @@ struct SnapsetApp: App {
 }
 
 struct RootView: View {
+    @AppStorage("hasOnboarded") private var hasOnboarded = false
+
     var body: some View {
         TabView {
             Tab("Workout", systemImage: "figure.strengthtraining.traditional") {
@@ -37,6 +39,9 @@ struct RootView: View {
             Tab("Settings", systemImage: "gearshape") {
                 SettingsView()
             }
+        }
+        .fullScreenCover(isPresented: Binding(get: { !hasOnboarded }, set: { hasOnboarded = !$0 })) {
+            OnboardingView()
         }
     }
 }

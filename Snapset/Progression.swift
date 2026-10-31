@@ -4,6 +4,14 @@ import Foundation
 enum Goal: String, CaseIterable {
     case muscle, lean, strength
 
+    var label: String {
+        switch self {
+        case .muscle: "Build muscle"
+        case .lean: "Get lean"
+        case .strength: "Strength"
+        }
+    }
+
     var repRange: ClosedRange<Int> {
         switch self {
         case .strength: 3...6

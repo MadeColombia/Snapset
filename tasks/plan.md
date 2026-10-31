@@ -90,7 +90,7 @@ Full acceptance criteria are in [todo.md](todo.md).
 - [ ] Logging a set by photo takes fewer taps and less time than manual entry in a real gym session
 
 ### Phase 4: Goal-based coaching
-- [ ] Task 9: Goal onboarding
+- [x] Task 9: Goal onboarding
 - [x] Task 10: Progression engine
 - [ ] Task 11: Next-session targets in the workout screen
 

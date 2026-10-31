@@ -296,11 +296,11 @@ Runs in parallel with Task 1. If the spike ends in "stop", only the photo flows 
 **Description:** First-run screens that capture the goal (build muscle, get lean / lose fat, strength), experience level and training days per week, with a plain "not medical advice" notice. Editable later in Settings.
 
 **Acceptance criteria:**
-- [ ] Goal, level and days per week are stored and editable
-- [ ] Onboarding is shown once and can be skipped (defaults to build muscle)
+- [x] Goal, level and days per week are stored and editable
+- [x] Onboarding is shown once and can be skipped (defaults to build muscle)
 
 **Verification:**
-- [ ] Manual check: fresh install, skip, and change later in Settings
+- [x] Manual check: fresh install, skip, and change later in Settings
 
 **Dependencies:** Task 2
 
