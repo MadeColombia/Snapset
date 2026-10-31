@@ -92,7 +92,7 @@ Full acceptance criteria are in [todo.md](todo.md).
 ### Phase 4: Goal-based coaching
 - [x] Task 9: Goal onboarding
 - [x] Task 10: Progression engine
-- [ ] Task 11: Next-session targets in the workout screen
+- [x] Task 11: Next-session targets in the workout screen
 
 ### Phase 5: Paid photo logging
 - [ ] Task 12: Subscription and paywall

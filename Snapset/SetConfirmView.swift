@@ -7,11 +7,14 @@ struct SetConfirmView: View {
     @Environment(\.modelContext) private var context
     @AppStorage("weightUnit") private var unit: WeightUnit = .kg
     let exercise: Exercise
+    var targetKg: Double? = nil  // from the progression engine; otherwise the last set pre-fills
+    var targetReps: Int? = nil
     let onLog: (_ weightKg: Double, _ reps: Int) -> Void
 
     @State private var weight: Double = 0  // in the display unit
     @State private var reps = 10
     @State private var hasHistory = false
+    @State private var logged = false
 
     var body: some View {
         NavigationStack {
@@ -37,6 +40,8 @@ struct SetConfirmView: View {
                 Spacer()
 
                 Button {
+                    guard !logged else { return }  // a double tap must log one set, not two
+                    logged = true
                     onLog(unit.toKg(weight), reps)
                     dismiss()
                 } label: {
@@ -53,10 +58,14 @@ struct SetConfirmView: View {
             }
         }
         .task {
-            guard let last = SetEntry.latest(of: exercise.id, in: context) else { return }
-            hasHistory = true
-            weight = (unit.fromKg(last.weightKg) * 100).rounded() / 100
-            reps = last.reps
+            let last = SetEntry.latest(of: exercise.id, in: context)
+            hasHistory = last != nil
+            if let kg = targetKg ?? last?.weightKg {
+                weight = (unit.fromKg(kg) * 100).rounded() / 100
+            }
+            if let targetReps = targetReps ?? last?.reps {
+                reps = targetReps
+            }
         }
     }
 }

@@ -85,6 +85,16 @@ final class WorkoutSession {
         self.routineName = routineName
     }
 
+    /// The time actually spent training, for Health and heart rate: a session left open overnight
+    /// must not become a 14-hour workout. Pads 15 minutes around the first and last set for warm-up and the final rest.
+    var activeWindow: (start: Date, end: Date) {
+        let end = finishedAt ?? .now
+        let times = sets.map(\.loggedAt)
+        guard let first = times.min(), let last = times.max() else { return (startedAt, end) }
+        let pad: TimeInterval = 15 * 60
+        return (max(startedAt, first - pad), min(end, last + pad))
+    }
+
     convenience init(routine: Routine) {
         self.init(routineName: routine.name)
         plan = routine.items.sorted { $0.order < $1.order }.compactMap { item in

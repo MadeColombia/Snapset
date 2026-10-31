@@ -39,6 +39,21 @@ struct PrefillTests {
         #expect(latest.reps == 8)
     }
 
+    @Test func activeWindowIgnoresTimeLeftOpen() throws {
+        let start = Date.now.addingTimeInterval(-14 * 3600)  // started last night, finished today
+        let session = WorkoutSession(startedAt: start)
+        let firstSet = Date.now.addingTimeInterval(-3600)
+        session.sets.append(SetEntry(exercise: press, weightKg: 40, reps: 10, loggedAt: firstSet))
+        session.sets.append(SetEntry(exercise: press, weightKg: 40, reps: 10, loggedAt: firstSet + 1800))
+        session.finishedAt = .now
+        context.insert(session)
+        try context.save()
+
+        let window = session.activeWindow
+        #expect(window.start == firstSet - 900)
+        #expect(window.end == firstSet + 1800 + 900)
+    }
+
     @Test func unfinishedSessionIsFoundForResume() throws {
         let routine = Routine(name: "Push")
         routine.items.append(RoutineItem(order: 1, targetSets: 4, exercise: row))

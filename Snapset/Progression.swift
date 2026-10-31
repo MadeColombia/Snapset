@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// Training goal; it sets the rep range progression works within.
 enum Goal: String, CaseIterable {
@@ -78,5 +79,26 @@ enum Progression {
         case .machine, .cable: unit == .kg ? 5 : 10
         case .barbell, .plateLoaded, .dumbbell: unit.step
         }
+    }
+}
+
+extension Progression {
+    /// One exercise's sets grouped by session, newest session first, leaving out `current`.
+    static func history(of exerciseID: String, excluding current: WorkoutSession?, in context: ModelContext) -> [[LoggedSet]] {
+        let descriptor = FetchDescriptor<SetEntry>(
+            predicate: #Predicate { $0.exercise?.id == exerciseID },
+            sortBy: [SortDescriptor(\.loggedAt, order: .reverse)]
+        )
+        var sessions: [[LoggedSet]] = []
+        var previous: PersistentIdentifier?
+        for set in (try? context.fetch(descriptor)) ?? [] {
+            guard let session = set.session, session != current else { continue }
+            if session.persistentModelID != previous {
+                sessions.append([])
+                previous = session.persistentModelID
+            }
+            sessions[sessions.count - 1].append(LoggedSet(weightKg: set.weightKg, reps: set.reps))
+        }
+        return sessions
     }
 }

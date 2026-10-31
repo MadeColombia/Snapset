@@ -336,9 +336,9 @@ Runs in parallel with Task 1. If the spike ends in "stop", only the photo flows 
 **Description:** Show the engine's target next to each exercise during a session and use it as the pre-fill on the confirm screen. After a session, show a one-line summary of what progressed.
 
 **Acceptance criteria:**
-- [ ] Each exercise in a session shows its target weight and rep range
-- [ ] Confirm screen pre-fills from the target when one exists
-- [ ] Post-session summary lists exercises that will go up next time
+- [x] Each exercise in a session shows its target weight and rep range
+- [x] Confirm screen pre-fills from the target when one exists
+- [x] Post-session summary lists exercises that will go up next time
 
 **Verification:**
 - [ ] Manual check: log two sessions and see the target rise after hitting the range
@@ -351,6 +351,134 @@ Runs in parallel with Task 1. If the spike ends in "stop", only the photo flows 
 - `Snapset/SessionSummaryView.swift`
 
 **Estimated scope:** Small
+
+---
+
+## Phase 4b: Ready for real workouts on my phone
+
+Goal: use Snapset for real workouts on your own iPhone with a free Apple ID. Out of scope here: sign-in, accounts, CloudKit sync, a Watch app, calories and body weight.
+
+## Task 15: No double logging
+
+**Description:** Double taps never create duplicates: one tap of Log set is one set, Finish ends the session and saves to Health once even if tapped twice or the Health save is slow.
+
+**Acceptance criteria:**
+- [x] Tapping Log set twice quickly logs one set
+- [x] Tapping Finish twice quickly finishes once and creates one Health workout
+
+**Verification:**
+- [ ] Manual check: double tap both buttons in the simulator
+
+**Dependencies:** Task 4
+
+**Estimated scope:** Small
+
+## Task 16: Save workouts to Apple Health
+
+**Description:** When a workout finishes, save it to Health as Traditional Strength Training with its start and end time, so it shows in Fitness and counts toward the Exercise ring. A "Save workouts to Health" switch in Settings turns it off, for days you run a Watch workout and don't want two entries.
+
+**Acceptance criteria:**
+- [x] A finished workout appears in Fitness with the right times
+- [ ] With the switch off, nothing is written to Health
+- [x] Denied Health permission never blocks finishing a workout
+
+**Verification:**
+- [ ] Manual check on your iPhone: finish a workout, see it in Fitness; turn the switch off, finish another, see nothing new
+- [ ] Confirm Health works with a free Apple ID
+
+**Dependencies:** Task 15
+
+**Files likely touched:**
+- `Snapset/Health.swift`
+- `Snapset/WorkoutView.swift`
+- `Snapset/SettingsView.swift`
+- `Snapset/Snapset.entitlements`
+
+**Estimated scope:** Small
+
+## Task 17: Heart rate from the Watch
+
+**Description:** The workout detail screen reads the heart rate Health has for the workout's time window and shows average and max. Detailed when a Watch Strength Training workout ran alongside; sparse otherwise.
+
+**Acceptance criteria:**
+- [ ] Average and max heart rate show on a finished workout when Health has readings
+- [x] No readings or no permission shows nothing, not an error
+
+**Verification:**
+- [ ] Manual check on your iPhone after a workout with the Watch on
+
+**Dependencies:** Task 16
+
+**Estimated scope:** Small
+
+## Task 18: Export and Import
+
+**Description:** Settings can export all routines and workouts to one file (Files or iCloud Drive) and import it back, so data survives deleting the app or changing phones until there is real sync.
+
+**Acceptance criteria:**
+- [x] Export writes one file with every routine, session and set
+- [x] Import restores it on an empty install
+- [x] Importing the same file twice adds nothing the second time
+
+**Verification:**
+- [x] Unit test: export, import into an empty store, compare; import again, counts unchanged
+- [ ] Manual check: export, delete and reinstall the app, import
+
+**Dependencies:** Task 4
+
+**Files likely touched:**
+- `Snapset/Backup.swift`
+- `Snapset/SettingsView.swift`
+- `SnapsetTests/BackupTests.swift`
+
+**Estimated scope:** Medium
+
+## Checkpoint: Ready for real workouts
+- [ ] A full workout logged on your iPhone shows its next targets, appears in Fitness and has heart rate
+- [ ] An export from that phone imports cleanly
+
+---
+
+## Phase 4c: Exercise library and cardio
+
+## Task 19: Exercise library with pictures
+
+**Description:** Replace the 60 bundled exercises with a larger library that has a picture for each, bundled so it works offline. Check the image licence before using any source: [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (public domain) is the front-runner; workoutxapp.com, wger (CC BY-SA, needs credit) and paid APIs are the alternatives. Existing exercise ids keep working so past sets stay linked.
+
+**Acceptance criteria:**
+- [ ] Hundreds of exercises, each with an image, searchable in the picker
+- [ ] Images shown in the picker and on the exercise and Log set screens
+- [ ] Licence recorded in the repo and allows use in a paid app
+
+**Dependencies:** None
+
+**Estimated scope:** Medium
+
+## Task 20: Cardio and other activities
+
+**Description:** Log running, rowing, cycling and similar activities by time and distance instead of weight × reps, and save them to Health as the matching workout type.
+
+**Acceptance criteria:**
+- [ ] Cardio entries have duration and optional distance; strength entries are unchanged
+- [ ] History and the exercise page show cardio sensibly (no 1RM)
+- [ ] Health gets the matching activity type
+
+**Dependencies:** Task 16
+
+**Estimated scope:** Medium
+
+## Task 21: Routine editor for strength and cardio
+
+**Description:** Routines mix strength exercises and cardio, with the right target for each: sets for strength, time or distance for cardio.
+
+**Acceptance criteria:**
+- [ ] A routine can hold both kinds, in any order
+- [ ] Each item shows and edits the target that fits its kind
+- [ ] Starting the routine carries those targets into the workout
+
+**Dependencies:** Task 19, Task 20
+
+**Estimated scope:** Medium
 
 ---
 
