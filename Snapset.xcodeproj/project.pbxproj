@@ -245,6 +245,7 @@
 		A10000000000000000000041 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = Snapset;
 				CODE_SIGN_ENTITLEMENTS = Snapset/Snapset.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -271,6 +272,7 @@
 		A10000000000000000000042 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = Snapset;
 				CODE_SIGN_ENTITLEMENTS = Snapset/Snapset.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
