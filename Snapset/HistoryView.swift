@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import SnapsetUI
 import Charts
 
 struct HistoryView: View {
@@ -45,6 +46,7 @@ struct HistoryView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+                .listRowBackground(Color.snap.surface)
 
                 if !sets.isEmpty {
                     Section {
@@ -52,27 +54,29 @@ struct HistoryView: View {
                         LabeledContent("Workouts", value: "\(sessions.count)")
                         LabeledContent("Per week", value: perWeek(sessions.count, since: sets.first!.loggedAt))
                         LabeledContent("Sets", value: "\(sets.count)")
-                        LabeledContent("Volume", value: unit.format(kg: sets.reduce(0) { $0 + $1.weightKg * Double($1.reps) }))
+                        LabeledContent("Total lifted", value: unit.format(kg: sets.reduce(0) { $0 + $1.weightKg * Double($1.reps) }))
                     } header: {
                         Text("Strength")
                     } footer: {
-                        Text("Change in estimated 1RM from the first to the latest time each lift was trained in this period.")
+                        Text("Change in your estimated best, the most you could probably lift once, from the first to the latest time each lift was trained in this period.")
                     }
+                    .listRowBackground(Color.snap.surface)
 
                     Section("Exercises") {
                         ForEach(ProgressReport.trends(lifts).sorted { $0.days > $1.days }, id: \.exerciseID) { trend in
                             if let exercise = exercises[trend.exerciseID] {
                                 NavigationLink(value: exercise) {
                                     LabeledContent {
-                                        Text(trend.firstKg > 0 ? percent(trend.change) : "–").foregroundStyle(color(trend.change))
+                                        if trend.firstKg > 0 { trendLabel(trend.change) } else { Text("No weight") }
                                     } label: {
                                         Text(exercise.name)
-                                        Text("\(trend.days) \(trend.days == 1 ? "day" : "days") · best \(unit.format(kg: trend.latestKg)) 1RM")
+                                        Text("\(trend.days) \(trend.days == 1 ? "day" : "days") · estimated best \(unit.format(kg: trend.latestKg))")
                                     }
                                 }
                             }
                         }
                     }
+                    .listRowBackground(Color.snap.surface)
 
                     Section("Workouts") {
                         ForEach(sessions) { session in
@@ -80,13 +84,15 @@ struct HistoryView: View {
                                 VStack(alignment: .leading) {
                                     Text(session.routineName ?? "Workout").font(.headline)
                                     Text("\(session.startedAt.formatted(date: .abbreviated, time: .shortened)) · \(session.sets.count) sets")
-                                        .font(.subheadline).foregroundStyle(.secondary)
+                                        .snapText(.secondary)
                                 }
                             }
                         }
                     }
+                    .listRowBackground(Color.snap.surface)
                 }
             }
+            .snapListBackground()
             .overlay {
                 if finished.isEmpty {
                     ContentUnavailableView("No workouts yet", systemImage: "chart.line.uptrend.xyaxis",
@@ -118,7 +124,7 @@ struct HistoryView: View {
         let index = ProgressReport.strengthIndex(lifts)
         if let last = index.last, index.count > 1 {
             VStack(alignment: .leading, spacing: 8) {
-                Text(percent(last.change)).font(.largeTitle.bold()).foregroundStyle(color(last.change))
+                trendLabel(last.change).snapText(.numberMedium)
                 indexChart(index)
             }
             .padding(.vertical, 4)
@@ -132,7 +138,7 @@ struct HistoryView: View {
                 .accessibilityHidden(true)
                 .overlay {
                     Label("Train the same lift on two different days to see your trend.", systemImage: "chart.line.uptrend.xyaxis")
-                        .font(.subheadline.weight(.medium))
+                        .snapText(.body)
                         .multilineTextAlignment(.center)
                         .padding()
                 }
@@ -145,6 +151,7 @@ struct HistoryView: View {
             LineMark(x: .value("Day", point.day, unit: .day), y: .value("Change", point.change))
             PointMark(x: .value("Day", point.day, unit: .day), y: .value("Change", point.change))
         }
+        .foregroundStyle(Color.snap.textPrimary)
         .chartYAxis { AxisMarks { AxisGridLine(); AxisValueLabel(format: FloatingPointFormatStyle<Double>.Percent()) } }
         .frame(height: 200)
     }
@@ -159,7 +166,15 @@ struct HistoryView: View {
         change.formatted(.percent.precision(.fractionLength(0...1)).sign(strategy: .always(includingZero: false)))
     }
 
-    private func color(_ change: Double) -> Color { change > 0 ? .green : change < 0 ? .red : .secondary }
+    /// Status colour always comes with an arrow, never colour alone, and never red.
+    private func trendLabel(_ change: Double) -> some View {
+        let (color, symbol) = change > 0 ? (Color.snap.statusUp, "arrow.up")
+            : change < 0 ? (Color.snap.statusDown, "arrow.down") : (Color.snap.textSecondary, "equal")
+        return Label(percent(change), systemImage: symbol)
+            .foregroundStyle(color)
+            .monospacedDigit()
+            .accessibilityLabel(change > 0 ? "Up \(percent(change))" : change < 0 ? "Down \(percent(change))" : "No change")
+    }
 }
 
 struct SessionDetailView: View {
@@ -177,10 +192,11 @@ struct SessionDetailView: View {
                     VStack(alignment: .leading) {
                         Text(exercise.name).font(.headline)
                         Text(sets.filter { $0.exercise == exercise }.map { "\(unit.format(kg: $0.weightKg)) × \($0.reps)" }.joined(separator: ", "))
-                            .font(.subheadline).foregroundStyle(.secondary)
+                            .snapText(.secondary).monospacedDigit()
                     }
                 }
             }
+            .listRowBackground(Color.snap.surface)
             if let heartRate {
                 Section {
                     LabeledContent("Average", value: "\(Int(heartRate.average.rounded())) bpm")
@@ -188,10 +204,12 @@ struct SessionDetailView: View {
                 } header: {
                     Text("Heart rate")
                 } footer: {
-                    Text("From Apple Health. Start a Strength Training workout on your Watch for a reading every few seconds instead of every few minutes.")
+                    Text("From Apple Health. Start a strength training workout on your Watch for a reading every few seconds instead of every few minutes.")
                 }
+                .listRowBackground(Color.snap.surface)
             }
         }
+        .snapListBackground()
         .navigationTitle(session.routineName ?? "Workout")
         .navigationBarTitleDisplayMode(.inline)
         .task {

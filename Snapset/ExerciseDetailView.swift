@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import SnapsetUI
 import Charts
 
 struct ExerciseDetailView: View {
@@ -34,14 +35,26 @@ struct ExerciseDetailView: View {
             if let heaviest = sets.max(by: { ($0.weightKg, $0.reps) < ($1.weightKg, $1.reps) }),
                let best = sets.max(by: { $0.estimatedOneRepMaxKg < $1.estimatedOneRepMaxKg }) {
                 Section {
-                    LabeledContent("Heaviest set", value: "\(unit.format(kg: heaviest.weightKg)) × \(heaviest.reps)")
-                    LabeledContent("Best estimated 1RM", value: unit.format(kg: best.estimatedOneRepMaxKg))
+                    let stats = Group {
+                        Stat(title: "Heaviest set", value: "\(unit.format(kg: heaviest.weightKg)) × \(heaviest.reps)")
+                        Stat(title: "Estimated best", value: unit.format(kg: best.estimatedOneRepMaxKg))
+                    }
+                    // Side by side when they fit on one line each, stacked at large text sizes.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: Snap.Spacing.l) { stats }.lineLimit(1)
+                        VStack(alignment: .leading, spacing: Snap.Spacing.m) { stats }
+                    }
+                    .padding(.vertical, Snap.Spacing.xs)
+                } footer: {
+                    Text("Estimated best is the most you could probably lift once, worked out from your sets.")
                 }
-                Section("Estimated 1RM by day") {
+                .listRowBackground(Color.snap.surface)
+                Section("Estimated best by day") {
                     Chart(dailyBest, id: \.day) { point in
                         LineMark(x: .value("Day", point.day, unit: .day), y: .value(unit.rawValue, unit.fromKg(point.kg)))
                         PointMark(x: .value("Day", point.day, unit: .day), y: .value(unit.rawValue, unit.fromKg(point.kg)))
                     }
+                    .foregroundStyle(Color.snap.textPrimary)
                     .chartXAxis {
                         // Label only training days; otherwise one day of data shows hour ticks.
                         AxisMarks(values: dailyBest.map(\.day)) { _ in
@@ -51,8 +64,10 @@ struct ExerciseDetailView: View {
                     }
                     .frame(height: 220)
                 }
+                .listRowBackground(Color.snap.surface)
             }
         }
+        .snapListBackground()
         .overlay {
             if sets.isEmpty {
                 ContentUnavailableView("No sets yet", systemImage: "dumbbell", description: Text("Log this exercise to see your progress."))
@@ -60,6 +75,20 @@ struct ExerciseDetailView: View {
         }
         .navigationTitle(exercise.name)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private struct Stat: View {
+        let title: String
+        let value: String
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
+                Text(title).snapText(.secondary)
+                Text(value).snapText(.numberMedium).foregroundStyle(Color.snap.textPrimary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+        }
     }
 
     private var dailyBest: [(day: Date, kg: Double)] {

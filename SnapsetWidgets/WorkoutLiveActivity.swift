@@ -1,5 +1,6 @@
 import ActivityKit
 import SwiftUI
+import SnapsetUI
 import WidgetKit
 
 @main
@@ -17,16 +18,17 @@ struct WorkoutLiveActivity: Widget {
                 Logo(size: 44)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.routineName).font(.headline).lineLimit(1)
-                    Text("Workout in progress").font(.subheadline).foregroundStyle(.secondary)
+                        .foregroundStyle(Color.snap.textPrimary)
+                    Text("Workout in progress").snapText(.secondary)
                 }
                 Spacer()
                 Elapsed(context: context)
-                    .font(.title.weight(.semibold))
+                    .snapText(.numberMedium)
                     .frame(maxWidth: 130, alignment: .trailing)
             }
             .padding()
-            .activityBackgroundTint(.black.opacity(0.8))
-            .activitySystemActionForegroundColor(.white)
+            .activityBackgroundTint(Color.snap.background)
+            .activitySystemActionForegroundColor(Color.snap.textPrimary)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -34,7 +36,7 @@ struct WorkoutLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Elapsed(context: context)
-                        .font(.title2.weight(.semibold))
+                        .font(.system(.title2, design: .rounded, weight: .semibold))
                         .frame(maxWidth: 120, alignment: .trailing)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
@@ -48,12 +50,12 @@ struct WorkoutLiveActivity: Widget {
                 Logo(size: 24)
             } compactTrailing: {
                 Elapsed(context: context)
-                    .font(.caption.weight(.semibold))
+                    .font(.system(.caption, design: .rounded, weight: .semibold))
                     .frame(maxWidth: 64, alignment: .trailing)  // a timer Text otherwise claims all the width it can
             } minimal: {
                 Logo(size: 24)
             }
-            .keylineTint(.orange)
+            .keylineTint(Color.snap.textPrimary)
         }
     }
 }
@@ -66,7 +68,7 @@ private struct Elapsed: View {
         ElapsedTime(startedAt: context.attributes.startedAt, pausedAt: context.state.pausedAt, pausedSeconds: context.state.pausedSeconds)
             .monospacedDigit()
             .multilineTextAlignment(.trailing)
-            .foregroundStyle(context.state.pausedAt == nil ? .orange : .gray)
+            .foregroundStyle(context.state.pausedAt == nil ? Color.snap.textPrimary : Color.snap.textSecondary)
     }
 }
 
@@ -80,16 +82,17 @@ private struct Controls: View {
             Button(intent: WorkoutButtonIntent(.pause)) {
                 Label(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill").frame(maxWidth: .infinity)
             }
-            .tint(.orange)
+            .tint(Color.snap.textPrimary)
+            // Log set is the one accent here, as in the app.
             Button(intent: WorkoutButtonIntent(.logSet)) {
                 Label("Log set", systemImage: "plus").frame(maxWidth: .infinity)
             }
-            .tint(.green)
+            .tint(Color.snap.accent)
             .disabled(!state.canLogSet)
             Button(intent: WorkoutButtonIntent(.finish)) {
                 Label("Finish", systemImage: "checkmark").frame(maxWidth: .infinity)
             }
-            .tint(.red)
+            .tint(Color.snap.textPrimary)
         }
         .font(.subheadline.weight(.semibold))
         .buttonStyle(.bordered)

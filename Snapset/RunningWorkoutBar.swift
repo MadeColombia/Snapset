@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import SnapsetUI
 
 /// The workout in progress, shown on the other tabs like a mini player: tap to go back to it, or pause from here.
 struct RunningWorkoutBar: View {
@@ -13,13 +14,13 @@ struct RunningWorkoutBar: View {
             Button(action: open) {
                 HStack(spacing: 10) {
                     Image(systemName: paused ? "pause.circle.fill" : "record.circle")
-                        .foregroundStyle(paused ? .orange : .red)
+                        .foregroundStyle(paused ? Color.snap.textSecondary : Color.snap.textPrimary)
                         .symbolEffect(.pulse, isActive: !paused)
-                    Text(session.routineName ?? "Workout").lineLimit(1)
+                    Text(session.routineName ?? "Workout").lineLimit(1).foregroundStyle(Color.snap.textPrimary)
                     Spacer(minLength: 4)
                     ElapsedTime(startedAt: session.startedAt, pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds)
                         .monospacedDigit()
-                        .foregroundStyle(paused ? .secondary : .primary)
+                        .foregroundStyle(paused ? Color.snap.textSecondary : Color.snap.textPrimary)
                         .fixedSize()  // a timer Text otherwise claims all the width it can
                 }
                 .contentShape(.rect)
@@ -34,8 +35,8 @@ struct RunningWorkoutBar: View {
             }
             .labelStyle(.iconOnly)
             .buttonStyle(.plain)
-            .foregroundStyle(.orange)
-            .frame(minWidth: 44, minHeight: 44)
+            .foregroundStyle(Color.snap.textPrimary)
+            .frame(minWidth: Snap.Tap.min, minHeight: Snap.Tap.min)
             .contentShape(.rect)
         }
         .font(.subheadline.weight(.semibold))
@@ -61,7 +62,7 @@ extension View {
         } else {
             safeAreaInset(edge: .bottom) {
                 if let bar {
-                    bar.padding(.vertical, 6).background(.bar)
+                    bar.padding(.vertical, Snap.Spacing.xs).background(Color.snap.surface)
                 }
             }
         }

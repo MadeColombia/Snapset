@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import SnapsetUI
 
 /// The one logging screen: manual entry now, and photo logging will pre-fill it later.
 struct SetConfirmView: View {
@@ -18,39 +19,27 @@ struct SetConfirmView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
+            VStack(spacing: Snap.Spacing.xl) {
                 if !hasHistory {
                     Text("First time logging this exercise. Enter the weight you lifted.")
-                        .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        .snapText(.secondary).multilineTextAlignment(.center)
                 }
 
-                StepperCard(title: "Weight (\(unit.rawValue))",
-                            minus: { weight = max(0, weight - unit.step) },
-                            plus: { weight += unit.step }) {
-                    TextField("0", value: $weight, format: .number.precision(.fractionLength(0...2)))
-                        .keyboardType(.decimalPad)
-                }
+                HeroNumberStepper("Weight", value: $weight, step: unit.step, in: 0...9_999, unit: unit.rawValue, editable: true)
+                HeroNumberStepper("Reps", value: Binding(get: { Double(reps) }, set: { reps = Int($0) }),
+                                  step: 1, in: 1...999, unit: "reps")
 
-                StepperCard(title: "Reps",
-                            minus: { reps = max(1, reps - 1) },
-                            plus: { reps += 1 }) {
-                    Text("\(reps)")
-                }
+                Spacer(minLength: 0)
 
-                Spacer()
-
-                Button {
+                PrimaryButton("Save set") {
                     guard !logged else { return }  // a double tap must log one set, not two
                     logged = true
                     onLog(unit.toKg(weight), reps)
                     dismiss()
-                } label: {
-                    Text("Log set").font(.title2.bold()).frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
             }
-            .padding()
+            .padding(Snap.Spacing.l)
+            .background(Color.snap.surface)
             .navigationTitle(exercise.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -67,44 +56,5 @@ struct SetConfirmView: View {
                 reps = targetReps
             }
         }
-    }
-}
-
-private struct StepperCard<Value: View>: View {
-    let title: String
-    let minus: () -> Void
-    let plus: () -> Void
-    @ViewBuilder let value: Value
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Text(title).font(.headline).foregroundStyle(.secondary)
-            HStack {
-                StepButton(systemImage: "minus", label: "Decrease \(title)", action: minus)
-                value
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                StepButton(systemImage: "plus", label: "Increase \(title)", action: plus)
-            }
-        }
-        .padding()
-        .background(.fill.tertiary, in: .rect(cornerRadius: 20))
-    }
-}
-
-private struct StepButton: View {
-    let systemImage: String
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemImage).font(.title.bold()).frame(width: 64, height: 64)
-        }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.circle)
-        .accessibilityLabel(label)
     }
 }

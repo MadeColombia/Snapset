@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import SnapsetUI
 
 @main
 struct SnapsetApp: App {
@@ -49,8 +50,9 @@ struct RootView: View {
             }
         }
         .runningWorkoutAccessory(tab == .workout ? nil : bar)
+        .tint(Color.snap.textPrimary)  // orange is kept for each screen's one primary action
         .fullScreenCover(isPresented: Binding(get: { !hasOnboarded }, set: { hasOnboarded = !$0 })) {
-            OnboardingView()
+            OnboardingView().tint(Color.snap.textPrimary)
         }
     }
 }

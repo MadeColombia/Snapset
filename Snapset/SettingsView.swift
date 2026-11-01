@@ -1,4 +1,5 @@
 import SwiftUI
+import SnapsetUI
 import SwiftData
 import UniformTypeIdentifiers
 
@@ -21,6 +22,7 @@ struct SettingsView: View {
                     ForEach(WeightUnit.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                .listRowBackground(Color.snap.surface)
 
                 TrainingProfileSection(goal: $goal, experience: $experience, days: $days)
 
@@ -31,13 +33,14 @@ struct SettingsView: View {
                 } footer: {
                     Text("Turn this off on days you also record the workout on your Apple Watch, so Fitness doesn't list it twice. Heart rate is read either way.")
                 }
+                .listRowBackground(Color.snap.surface)
 
                 Section {
                     Button("Export all data") {
                         do {
                             exportFile = BackupFile(data: try JSONEncoder().encode(Backup(context: context)))
                         } catch {
-                            message = "Export failed: \(error.localizedDescription)"
+                            message = "Couldn't export your data. Try again. (\(error.localizedDescription))"
                         }
                     }
                     Button("Import from file") { importing = true }
@@ -46,6 +49,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("Saves your routines and workouts to one file in Files or iCloud Drive. Importing the same file again adds nothing new.")
                 }
+                .listRowBackground(Color.snap.surface)
 
                 Section {
                     LabeledContent("Exercises", value: "\(exercises.count)")
@@ -55,12 +59,14 @@ struct SettingsView: View {
                     // CC BY-SA 4.0 requires naming the author, the license and that the images were resized.
                     Text("Exercise drawings by [Everkinetic](https://github.com/everkinetic/data), licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Resized for the app.")
                 }
+                .listRowBackground(Color.snap.surface)
             }
+            .snapListBackground()
             .navigationTitle("Settings")
             .fileExporter(isPresented: Binding(get: { exportFile != nil }, set: { if !$0 { exportFile = nil } }),
                           document: exportFile, contentType: .json,
                           defaultFilename: "Snapset \(Date.now.formatted(.iso8601.year().month().day()))") { result in
-                if case .failure(let error) = result { message = "Export failed: \(error.localizedDescription)" }
+                if case .failure(let error) = result { message = "Couldn't save the export. Try again. (\(error.localizedDescription))" }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
                 do {
@@ -70,7 +76,7 @@ struct SettingsView: View {
                     let added = try JSONDecoder().decode(Backup.self, from: Data(contentsOf: url)).restore(into: context)
                     message = added == 0 ? "Nothing new to import." : "Imported \(added) routines and workouts."
                 } catch {
-                    message = "Import failed: \(error.localizedDescription)"
+                    message = "Couldn't import that file. Check it's a Snapset backup and try again. (\(error.localizedDescription))"
                 }
             }
             .alert(message ?? "", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
