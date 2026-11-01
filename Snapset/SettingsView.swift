@@ -47,8 +47,13 @@ struct SettingsView: View {
                     Text("Saves your routines and workouts to one file in Files or iCloud Drive. Importing the same file again adds nothing new.")
                 }
 
-                Section("Exercise library") {
+                Section {
                     LabeledContent("Exercises", value: "\(exercises.count)")
+                } header: {
+                    Text("Exercise library")
+                } footer: {
+                    // CC BY-SA 4.0 requires naming the author, the license and that the images were resized.
+                    Text("Exercise drawings by [Everkinetic](https://github.com/everkinetic/data), licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Resized for the app.")
                 }
             }
             .navigationTitle("Settings")

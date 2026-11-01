@@ -15,6 +15,22 @@ struct ExerciseDetailView: View {
 
     var body: some View {
         List {
+            let drawings = exercise.drawings
+            if !drawings.isEmpty {
+                Section {
+                    HStack {
+                        ForEach(Array(drawings.enumerated()), id: \.offset) { _, drawing in
+                            Image(uiImage: drawing).resizable().scaledToFit().frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    .listRowBackground(Color.white)  // black line art needs white in dark mode too
+                    .accessibilityElement()
+                    .accessibilityLabel("Drawing of \(exercise.name), start and end position")
+                } footer: {
+                    Text("Drawing by Everkinetic, CC BY-SA 4.0")
+                }
+            }
             if let heaviest = sets.max(by: { ($0.weightKg, $0.reps) < ($1.weightKg, $1.reps) }),
                let best = sets.max(by: { $0.estimatedOneRepMaxKg < $1.estimatedOneRepMaxKg }) {
                 Section {

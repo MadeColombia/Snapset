@@ -32,9 +32,12 @@ struct RoutineEditorView: View {
                             Button("Use goal range") { item.targetReps = nil }
                         }
                     } label: {
-                        VStack(alignment: .leading) {
-                            Text(item.exercise?.name ?? "Unknown exercise")
-                            Text("\(item.targetSets) sets · \(reps)").font(.subheadline).foregroundStyle(.secondary)
+                        HStack {
+                            if let exercise = item.exercise { ExerciseThumbnail(exercise: exercise) }
+                            VStack(alignment: .leading) {
+                                Text(item.exercise?.name ?? "Unknown exercise")
+                                Text("\(item.targetSets) sets · \(reps)").font(.subheadline).foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -88,9 +91,12 @@ struct ExercisePickerView: View {
                     onPick(exercise)
                     dismiss()
                 } label: {
-                    VStack(alignment: .leading) {
-                        Text(exercise.name).foregroundStyle(.primary)
-                        Text(exercise.equipment.label).font(.subheadline).foregroundStyle(.secondary)
+                    HStack {
+                        ExerciseThumbnail(exercise: exercise)
+                        VStack(alignment: .leading) {
+                            Text(exercise.name).foregroundStyle(.primary)
+                            Text(exercise.equipment.label).font(.subheadline).foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .tint(.primary)
