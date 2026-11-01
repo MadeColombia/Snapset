@@ -305,6 +305,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Snapset;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Snapset reads the heart rate your Apple Watch recorded during a workout.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Snapset saves finished workouts to Apple Health so they count toward your Activity rings.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -337,6 +338,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Snapset;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Snapset reads the heart rate your Apple Watch recorded during a workout.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Snapset saves finished workouts to Apple Health so they count toward your Activity rings.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
