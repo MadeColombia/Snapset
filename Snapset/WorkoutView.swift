@@ -305,20 +305,25 @@ private struct WorkoutControls: View {
     let allDone: Bool  // Finish takes the accent once every planned set is logged
     let togglePause: () -> Void
     let finish: () -> Void
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         // Snapset buttons use a plain style, which keeps each one tappable on its own inside a List row.
-        HStack(spacing: Snap.Spacing.s) {
-            SecondaryButton(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill", action: togglePause)
-            if allDone {
-                PrimaryButton("Finish", action: finish)
-            } else {
-                SecondaryButton("Finish", systemImage: "checkmark", action: finish)
-            }
-        }
-        .lineLimit(1)
-        .padding(.bottom, Snap.Spacing.s)
+        // Stacked at accessibility text sizes, where two side by side would cut off their words.
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: Snap.Spacing.s))
+                                                  : AnyLayout(HStackLayout(spacing: Snap.Spacing.s))
+        layout { buttons }
+            .padding(.bottom, Snap.Spacing.s)
         .listRowSeparator(.hidden)
+    }
+
+    @ViewBuilder private var buttons: some View {
+        SecondaryButton(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill", action: togglePause)
+        if allDone {
+            PrimaryButton("Finish", action: finish)
+        } else {
+            SecondaryButton("Finish", systemImage: "checkmark", action: finish)
+        }
     }
 }
 

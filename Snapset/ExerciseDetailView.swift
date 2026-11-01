@@ -35,9 +35,14 @@ struct ExerciseDetailView: View {
             if let heaviest = sets.max(by: { ($0.weightKg, $0.reps) < ($1.weightKg, $1.reps) }),
                let best = sets.max(by: { $0.estimatedOneRepMaxKg < $1.estimatedOneRepMaxKg }) {
                 Section {
-                    HStack(alignment: .top, spacing: Snap.Spacing.l) {
+                    let stats = Group {
                         Stat(title: "Heaviest set", value: "\(unit.format(kg: heaviest.weightKg)) × \(heaviest.reps)")
                         Stat(title: "Estimated best", value: unit.format(kg: best.estimatedOneRepMaxKg))
+                    }
+                    // Side by side when they fit on one line each, stacked at large text sizes.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: Snap.Spacing.l) { stats }.lineLimit(1)
+                        VStack(alignment: .leading, spacing: Snap.Spacing.m) { stats }
                     }
                     .padding(.vertical, Snap.Spacing.xs)
                 } footer: {
@@ -80,7 +85,6 @@ struct ExerciseDetailView: View {
             VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
                 Text(title).snapText(.secondary)
                 Text(value).snapText(.numberMedium).foregroundStyle(Color.snap.textPrimary)
-                    .minimumScaleFactor(0.6)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
