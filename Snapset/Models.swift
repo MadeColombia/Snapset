@@ -79,6 +79,8 @@ final class WorkoutSession {
     // Name and plan copied, not linked, so editing or deleting a routine never touches past sessions.
     var routineName: String?
     var plan: [PlannedExercise] = []
+    var pausedAt: Date?
+    var pausedSeconds: Double = 0  // finished pauses, left out of the workout time
     @Relationship(deleteRule: .cascade, inverse: \SetEntry.session) var sets: [SetEntry] = []
 
     static let isActive = #Predicate<WorkoutSession> { $0.finishedAt == nil }
@@ -96,6 +98,15 @@ final class WorkoutSession {
         guard let first = times.min(), let last = times.max() else { return (startedAt, end) }
         let pad: TimeInterval = 15 * 60
         return (max(startedAt, first - pad), min(end, last + pad))
+    }
+
+    func togglePause(at now: Date = .now) {
+        if let pausedAt {
+            pausedSeconds += now.timeIntervalSince(pausedAt)
+            self.pausedAt = nil
+        } else {
+            pausedAt = now
+        }
     }
 
     convenience init(routine: Routine) {

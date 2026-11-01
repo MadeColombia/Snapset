@@ -12,6 +12,8 @@ struct SnapsetApp: App {
         } catch {
             fatalError("Could not open the database: \(error)")
         }
+        let context = container.mainContext
+        WorkoutButtonIntent.handler = { WorkoutActivity.handle($0, in: context) }
     }
 
     var body: some Scene {
@@ -23,23 +25,30 @@ struct SnapsetApp: App {
 }
 
 struct RootView: View {
+    enum AppTab { case workout, routines, progress, settings }
+
     @AppStorage("hasOnboarded") private var hasOnboarded = false
+    @Query(filter: WorkoutSession.isActive, sort: \WorkoutSession.startedAt, order: .reverse) private var active: [WorkoutSession]
+    @State private var tab = AppTab.workout
 
     var body: some View {
-        TabView {
-            Tab("Workout", systemImage: "figure.strengthtraining.traditional") {
+        // The workout tab already shows the timer, so the bar only appears on the others.
+        let bar = active.first.map { session in RunningWorkoutBar(session: session) { tab = .workout } }
+        TabView(selection: $tab) {
+            Tab("Workout", systemImage: "figure.strengthtraining.traditional", value: .workout) {
                 WorkoutView()
             }
-            Tab("Routines", systemImage: "list.bullet.rectangle") {
-                RoutineListView()
+            Tab("Routines", systemImage: "list.bullet.rectangle", value: .routines) {
+                RoutineListView().runningWorkoutInset(bar)
             }
-            Tab("Progress", systemImage: "chart.line.uptrend.xyaxis") {
-                HistoryView()
+            Tab("Progress", systemImage: "chart.line.uptrend.xyaxis", value: .progress) {
+                HistoryView().runningWorkoutInset(bar)
             }
-            Tab("Settings", systemImage: "gearshape") {
-                SettingsView()
+            Tab("Settings", systemImage: "gearshape", value: .settings) {
+                SettingsView().runningWorkoutInset(bar)
             }
         }
+        .runningWorkoutAccessory(tab == .workout ? nil : bar)
         .fullScreenCover(isPresented: Binding(get: { !hasOnboarded }, set: { hasOnboarded = !$0 })) {
             OnboardingView()
         }

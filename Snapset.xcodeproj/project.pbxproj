@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A1000000000000000000006B /* SnapsetWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000060 /* SnapsetWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		A10000000000000000000020 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -14,12 +18,44 @@
 			remoteGlobalIDString = A10000000000000000000010;
 			remoteInfo = Snapset;
 		};
+		A1000000000000000000006D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000063;
+			remoteInfo = SnapsetWidgets;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A1000000000000000000006A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A1000000000000000000006B /* SnapsetWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A10000000000000000000005 /* Snapset.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Snapset.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000006 /* SnapsetTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapsetTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000060 /* SnapsetWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapsetWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A1000000000000000000006E /* Exceptions for "SnapsetWidgets" folder in "SnapsetWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A10000000000000000000063 /* SnapsetWidgets */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10000000000000000000003 /* Snapset */ = {
@@ -30,6 +66,19 @@
 		A10000000000000000000004 /* SnapsetTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = SnapsetTests;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000061 /* SnapsetWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A1000000000000000000006E /* Exceptions for "SnapsetWidgets" folder in "SnapsetWidgets" target */,
+			);
+			path = SnapsetWidgets;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000062 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -49,6 +98,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000000000000000000065 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -57,6 +113,8 @@
 			children = (
 				A10000000000000000000003 /* Snapset */,
 				A10000000000000000000004 /* SnapsetTests */,
+				A10000000000000000000061 /* SnapsetWidgets */,
+				A10000000000000000000062 /* Shared */,
 				A10000000000000000000007 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -66,6 +124,7 @@
 			children = (
 				A10000000000000000000005 /* Snapset.app */,
 				A10000000000000000000006 /* SnapsetTests.xctest */,
+				A10000000000000000000060 /* SnapsetWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -80,13 +139,16 @@
 				A10000000000000000000011 /* Sources */,
 				A10000000000000000000012 /* Frameworks */,
 				A10000000000000000000013 /* Resources */,
+				A1000000000000000000006A /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A1000000000000000000006C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A10000000000000000000003 /* Snapset */,
+				A10000000000000000000062 /* Shared */,
 			);
 			name = Snapset;
 			productName = Snapset;
@@ -114,6 +176,27 @@
 			productReference = A10000000000000000000006 /* SnapsetTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		A10000000000000000000063 /* SnapsetWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000067 /* Build configuration list for PBXNativeTarget "SnapsetWidgets" */;
+			buildPhases = (
+				A10000000000000000000064 /* Sources */,
+				A10000000000000000000065 /* Frameworks */,
+				A10000000000000000000066 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A10000000000000000000061 /* SnapsetWidgets */,
+				A10000000000000000000062 /* Shared */,
+			);
+			name = SnapsetWidgets;
+			productName = SnapsetWidgets;
+			productReference = A10000000000000000000060 /* SnapsetWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -130,6 +213,9 @@
 					A10000000000000000000014 = {
 						CreatedOnToolsVersion = 27.1;
 						TestTargetID = A10000000000000000000010;
+					};
+					A10000000000000000000063 = {
+						CreatedOnToolsVersion = 27.1;
 					};
 				};
 			};
@@ -149,6 +235,7 @@
 			targets = (
 				A10000000000000000000010 /* Snapset */,
 				A10000000000000000000014 /* SnapsetTests */,
+				A10000000000000000000063 /* SnapsetWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -162,6 +249,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A10000000000000000000017 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000066 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -185,6 +279,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000000000000000000064 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -192,6 +293,11 @@
 			isa = PBXTargetDependency;
 			target = A10000000000000000000010 /* Snapset */;
 			targetProxy = A10000000000000000000020 /* PBXContainerItemProxy */;
+		};
+		A1000000000000000000006C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000063 /* SnapsetWidgets */;
+			targetProxy = A1000000000000000000006D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -307,6 +413,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Snapset;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Snapset reads the heart rate your Apple Watch recorded during a workout.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Snapset saves finished workouts to Apple Health so they count toward your Activity rings.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -340,6 +447,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Snapset;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Snapset reads the heart rate your Apple Watch recorded during a workout.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Snapset saves finished workouts to Apple Health so they count toward your Activity rings.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -392,6 +500,56 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000068 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K72NFZ5W3A;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnapsetWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Snapset;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ethanmont.Snapset.Widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A10000000000000000000069 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K72NFZ5W3A;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnapsetWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Snapset;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ethanmont.Snapset.Widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -418,6 +576,15 @@
 			buildConfigurations = (
 				A10000000000000000000051 /* Debug */,
 				A10000000000000000000052 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000067 /* Build configuration list for PBXNativeTarget "SnapsetWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000068 /* Debug */,
+				A10000000000000000000069 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

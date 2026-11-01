@@ -65,6 +65,7 @@ struct StartWorkoutView: View {
             }
         }
         .navigationTitle("Start workout")
+        .task { WorkoutActivity.end() }  // no workout running, so none should show in the Dynamic Island
         .fullScreenCover(item: $countingDown) { routine in
             // The session is created when the countdown ends, so the timer starts at 0:00.
             CountdownView {
@@ -146,7 +147,6 @@ struct SessionView: View {
     @Environment(\.modelContext) private var context
     @AppStorage("weightUnit") private var unit: WeightUnit = .kg
     @AppStorage("goal") private var goal: Goal = .muscle
-    @AppStorage("saveToHealth") private var saveToHealth = true
     @Bindable var session: WorkoutSession
     let onFinish: (_ goingUp: [String]) -> Void
     @Query private var exercises: [Exercise]
@@ -159,12 +159,19 @@ struct SessionView: View {
         List {
             Section {
                 VStack(spacing: 4) {
-                    Label("Workout in progress", systemImage: "record.circle")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.red)
-                        .symbolEffect(.pulse)
-                    Text(timerInterval: session.startedAt...Date.distantFuture, countsDown: false)
+                    if session.pausedAt == nil {
+                        Label("Workout in progress", systemImage: "record.circle")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.red)
+                            .symbolEffect(.pulse)
+                    } else {
+                        Label("Paused", systemImage: "pause.circle")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.orange)
+                    }
+                    ElapsedTime(startedAt: session.startedAt, pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds)
                         .font(.system(size: 56, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(session.pausedAt == nil ? .primary : .secondary)
                         .contentTransition(.numericText())
                     // A workout left open overnight shows its date, so a stale one is easy to spot.
                     let today = Calendar.current.isDateInToday(session.startedAt)
@@ -172,8 +179,14 @@ struct SessionView: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
+                .padding(.top, 8)
                 .accessibilityElement(children: .combine)
+                WorkoutControls(paused: session.pausedAt != nil) {
+                    session.togglePause()
+                    try? context.save()
+                } finish: {
+                    confirmingFinish = true
+                }
             }
             ForEach(Array(session.plan.enumerated()), id: \.offset) { _, planned in
                 if let exercise = byID[planned.exerciseID] {
@@ -200,10 +213,7 @@ struct SessionView: View {
             }
         }
         .navigationTitle(session.routineName ?? "Workout")
-        .toolbar {
-            Button("Finish") { confirmingFinish = true }
-        }
-        // An alert, not a confirmationDialog: on iOS 26+ the dialog pops over the toolbar button instead of centering.
+        // An alert, not a confirmationDialog: on iOS 26+ the dialog pops over the button instead of centering.
         .alert(session.sets.isEmpty ? "Discard this workout?" : "Finish this workout?", isPresented: $confirmingFinish) {
             Button("Cancel", role: .cancel) {}
             Button(session.sets.isEmpty ? "Discard" : "Finish", role: session.sets.isEmpty ? .destructive : nil, action: finish)
@@ -220,6 +230,10 @@ struct SessionView: View {
                 session.sets.append(SetEntry(exercise: exercise, weightKg: weightKg, reps: reps))
                 try? context.save()  // save each set at once so a killed app loses nothing
             }
+        }
+        // Keeps the Dynamic Island's next set and pause state in step with this screen.
+        .task(id: "\(session.sets.count)-\(String(describing: session.pausedAt))-\(goal.rawValue)-\(unit.rawValue)") {
+            WorkoutActivity.sync(session, in: context)
         }
         .task(id: "\(goal.rawValue)-\(unit.rawValue)") {
             targets = nextTargets(excluding: session)
@@ -249,16 +263,7 @@ struct SessionView: View {
     }
 
     private func finish() {
-        guard session.finishedAt == nil, !session.isDeleted else { return }  // a second tap must not finish or save twice
-        if session.sets.isEmpty {
-            context.delete(session)
-            try? context.save()
-            return
-        }
-        session.finishedAt = .now
-        try? context.save()
-        let window = session.activeWindow
-
+        guard session.finish(in: context) else { return }  // discarded, or a second tap
         let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let trained = Set(session.sets.compactMap(\.exercise?.id))
         let goingUp = nextTargets(excluding: nil).compactMap { id, target -> String? in
@@ -266,8 +271,46 @@ struct SessionView: View {
             return "\(name): \(unit.format(kg: kg))"
         }
         onFinish(goingUp.sorted())
-        if saveToHealth {
-            Task { await Health.saveWorkout(start: window.start, end: window.end) }
+    }
+}
+
+/// Pause and Finish under the timer; sets are logged from each exercise below.
+private struct WorkoutControls: View {
+    let paused: Bool
+    let togglePause: () -> Void
+    let finish: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: togglePause) {
+                Control(title: paused ? "Resume" : "Pause", symbol: paused ? "play.fill" : "pause.fill")
+            }
+            .tint(.orange)
+            Button(action: finish) {
+                Control(title: "Finish", symbol: "checkmark")
+            }
+            .tint(.red)
+        }
+        .font(.subheadline.weight(.semibold))
+        .lineLimit(1)
+        .buttonStyle(.bordered)  // a non-plain style keeps each button tappable on its own inside a List row
+        .buttonBorderShape(.roundedRectangle(radius: 14))
+        .padding(.bottom, 8)
+        .listRowSeparator(.hidden)
+    }
+
+    /// Icon above the word, like the Dynamic Island's buttons.
+    private struct Control: View {
+        let title: String
+        let symbol: String
+
+        var body: some View {
+            VStack(spacing: 4) {
+                Image(systemName: symbol).font(.title3)
+                Text(title)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
         }
     }
 }
