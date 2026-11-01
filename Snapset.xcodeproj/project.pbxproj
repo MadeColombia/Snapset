@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A1000000000000000000006B /* SnapsetWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000060 /* SnapsetWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A10000000000000000000072 /* SnapsetUI in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000071 /* SnapsetUI */; };
+		A10000000000000000000074 /* SnapsetUI in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000073 /* SnapsetUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -104,6 +105,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000074 /* SnapsetUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -198,6 +200,9 @@
 				A10000000000000000000062 /* Shared */,
 			);
 			name = SnapsetWidgets;
+			packageProductDependencies = (
+				A10000000000000000000073 /* SnapsetUI */,
+			);
 			productName = SnapsetWidgets;
 			productReference = A10000000000000000000060 /* SnapsetWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -318,6 +323,10 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		A10000000000000000000071 /* SnapsetUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SnapsetUI;
+		};
+		A10000000000000000000073 /* SnapsetUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SnapsetUI;
 		};
