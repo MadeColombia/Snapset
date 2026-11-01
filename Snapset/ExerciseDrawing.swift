@@ -40,3 +40,29 @@ struct ExerciseThumbnail: View {
         .accessibilityHidden(true)
     }
 }
+
+/// Start and end drawings side by side on the workout screen, so anyone can see the movement.
+struct ExerciseDemo: View {
+    let exercise: Exercise
+
+    var body: some View {
+        let drawings = exercise.drawings
+        if !drawings.isEmpty {
+            HStack(spacing: 12) {
+                ForEach(Array(drawings.enumerated()), id: \.offset) { index, drawing in
+                    VStack(spacing: 4) {
+                        Image(uiImage: drawing).resizable().scaledToFit().frame(maxHeight: 110)
+                        Text(index == 0 ? "Start" : "Finish")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Color(white: 0.35))  // fixed: the card is white in dark mode too
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(10)
+            .background(.white, in: .rect(cornerRadius: 12))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Drawing of \(exercise.name), start and finish position")
+        }
+    }
+}

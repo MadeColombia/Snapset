@@ -179,6 +179,7 @@ struct SessionView: View {
                 if let exercise = byID[planned.exerciseID] {
                     let sets = sets(of: exercise)
                     Section {
+                        ExerciseDemo(exercise: exercise)
                         if let target = targets[exercise.id] {
                             TargetRow(target: target, unit: unit)
                         }
