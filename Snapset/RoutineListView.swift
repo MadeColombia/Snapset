@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import SnapsetUI
 
 struct RoutineListView: View {
     @Environment(\.modelContext) private var context
@@ -11,16 +12,19 @@ struct RoutineListView: View {
             List {
                 ForEach(routines) { routine in
                     NavigationLink(value: routine) {
-                        VStack(alignment: .leading) {
-                            Text(routine.name.isEmpty ? "Untitled routine" : routine.name).font(.headline)
-                            Text("\(routine.items.count) exercises").font(.subheadline).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
+                            Text(routine.name.isEmpty ? "Untitled routine" : routine.name).snapText(.sectionTitle)
+                            Text("^[\(routine.items.count) exercise](inflect: true)").snapText(.secondary)
                         }
+                        .frame(minHeight: Snap.Tap.min, alignment: .leading)
                     }
                 }
                 .onDelete { offsets in
                     offsets.map { routines[$0] }.forEach(context.delete)
                 }
+                .listRowBackground(Color.snap.surface)
             }
+            .snapListBackground()
             .overlay {
                 if routines.isEmpty {
                     ContentUnavailableView {
@@ -28,7 +32,7 @@ struct RoutineListView: View {
                     } description: {
                         Text("Create a routine to plan the exercises for a workout day.")
                     } actions: {
-                        Button("New routine", action: addRoutine).buttonStyle(.borderedProminent)
+                        PrimaryButton("New routine", action: addRoutine).padding(.horizontal, Snap.Spacing.xl)
                     }
                 }
             }

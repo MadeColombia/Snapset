@@ -1,4 +1,5 @@
 import SwiftUI
+import SnapsetUI
 
 extension Exercise {
     /// Everkinetic drawings (CC BY-SA 4.0) bundled as "<id>-0.png" (start) and "<id>-1.png" (end); empty when there are none.
@@ -31,9 +32,9 @@ struct ExerciseThumbnail: View {
             } else {
                 Image(systemName: exercise.equipment.symbol)
                     .font(.system(size: size * 0.45))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.snap.textSecondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(.quaternary, in: .rect(cornerRadius: 8))
+                    .background(Color.snap.surfaceRaised, in: .rect(cornerRadius: Snap.Radius.chip))
             }
         }
         .frame(width: size, height: size)
