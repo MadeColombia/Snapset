@@ -31,13 +31,13 @@ struct StartWorkoutView: View {
     @Query(sort: \Routine.createdAt) private var routines: [Routine]
     @State private var draft: Routine?
     @State private var editingDraft = false
+    @State private var countingDown: Routine?
 
     var body: some View {
         List {
             ForEach(routines) { routine in
                 Button {
-                    context.insert(WorkoutSession(routine: routine))
-                    try? context.save()
+                    countingDown = routine
                 } label: {
                     VStack(alignment: .leading) {
                         Text(routine.name.isEmpty ? "Untitled routine" : routine.name).font(.headline)
@@ -65,6 +65,16 @@ struct StartWorkoutView: View {
             }
         }
         .navigationTitle("Start workout")
+        .fullScreenCover(item: $countingDown) { routine in
+            // The session is created when the countdown ends, so the timer starts at 0:00.
+            CountdownView {
+                context.insert(WorkoutSession(routine: routine))
+                try? context.save()
+                countingDown = nil
+            } onCancel: {
+                countingDown = nil
+            }
+        }
         .sheet(isPresented: $editingDraft, onDismiss: discardEmptyDraft) {
             if let draft {
                 NavigationStack {
@@ -89,6 +99,46 @@ struct StartWorkoutView: View {
         if let draft, draft.items.isEmpty { context.delete(draft) }
         try? context.save()
         draft = nil
+    }
+}
+
+struct CountdownView: View {
+    static let seconds = 3
+    let onFinish: () -> Void
+    let onCancel: () -> Void
+    @State private var remaining = seconds
+
+    var body: some View {
+        VStack(spacing: 32) {
+            Text("Get ready").font(.title2.weight(.semibold)).foregroundStyle(.secondary)
+            ZStack {
+                Circle().stroke(.quaternary, lineWidth: 14)
+                Circle()
+                    .trim(from: 0, to: Double(remaining) / Double(Self.seconds))
+                    .stroke(.green, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Text(remaining > 0 ? "\(remaining)" : "Go")
+                    .font(.system(size: 120, weight: .bold, design: .rounded))
+                    .contentTransition(.numericText(countsDown: true))
+            }
+            .frame(width: 240, height: 240)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(remaining > 0 ? "Starting in \(remaining)" : "Go")
+            Button("Cancel", action: onCancel).font(.headline)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.background)
+        .sensoryFeedback(.impact, trigger: remaining)
+        .task {
+            while remaining > 0 {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }  // Cancel dismissed the cover
+                withAnimation(.linear(duration: 0.3)) { remaining -= 1 }
+            }
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            onFinish()
+        }
     }
 }
 
