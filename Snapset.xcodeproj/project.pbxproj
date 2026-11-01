@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A1000000000000000000006B /* SnapsetWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000060 /* SnapsetWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A10000000000000000000072 /* SnapsetUI in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000071 /* SnapsetUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -88,6 +89,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000072 /* SnapsetUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -151,6 +153,9 @@
 				A10000000000000000000062 /* Shared */,
 			);
 			name = Snapset;
+			packageProductDependencies = (
+				A10000000000000000000071 /* SnapsetUI */,
+			);
 			productName = Snapset;
 			productReference = A10000000000000000000005 /* Snapset.app */;
 			productType = "com.apple.product-type.application";
@@ -228,6 +233,9 @@
 			);
 			mainGroup = A10000000000000000000002;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A10000000000000000000070 /* XCLocalSwiftPackageReference "Packages/SnapsetUI" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A10000000000000000000007 /* Products */;
 			projectDirPath = "";
@@ -300,6 +308,20 @@
 			targetProxy = A1000000000000000000006D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A10000000000000000000070 /* XCLocalSwiftPackageReference "Packages/SnapsetUI" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/SnapsetUI;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A10000000000000000000071 /* SnapsetUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SnapsetUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A10000000000000000000031 /* Debug */ = {
