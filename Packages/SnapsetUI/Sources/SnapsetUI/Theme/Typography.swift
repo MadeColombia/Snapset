@@ -26,7 +26,7 @@ private struct SnapTextModifier: ViewModifier {
         case .secondary:
             content.font(.subheadline).foregroundStyle(Color.snap.textSecondary)
         case .label:
-            content.font(.footnote.weight(.medium))
+            content.font(.footnote.weight(.semibold))
         }
     }
 }
