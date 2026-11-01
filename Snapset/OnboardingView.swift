@@ -1,4 +1,5 @@
 import SwiftUI
+import SnapsetUI
 
 enum Experience: String, CaseIterable {
     case beginner, intermediate, advanced
@@ -21,11 +22,13 @@ struct TrainingProfileSection: View {
                 ForEach(Experience.allCases, id: \.self) { Text($0.label).tag($0) }
             }
             Stepper("\(days) days a week", value: $days, in: 1...7)
+                .sensoryFeedback(Snap.Haptic.stepperChange, trigger: days)
         } header: {
             Text("Training")
         } footer: {
-            Text("Snapset suggests weights and reps from the sets you log. It is not medical advice; if you have an injury or health condition, check with a professional first.")
+            Text("Snapset suggests weights and reps from the sets you log. It is not medical advice. If you have an injury or health condition, check with a professional first.")
         }
+        .listRowBackground(Color.snap.surface)
     }
 }
 
@@ -45,18 +48,20 @@ struct OnboardingView: View {
                 Section {
                     Text("Tell Snapset what you train for. It picks your rep ranges and when to add weight. You can change this later in Settings.")
                 }
+                .listRowBackground(Color.snap.surface)
                 TrainingProfileSection(goal: $goal, experience: $experience, days: $days)
                 Section {
-                    Button("Get started") {
+                    PrimaryButton("Get started") {
                         savedGoal = goal
                         savedExperience = experience
                         savedDays = days
                         hasOnboarded = true
                     }
-                    .bold()
-                    .frame(maxWidth: .infinity)
                 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
             }
+            .snapListBackground()
             .navigationTitle("Welcome")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
