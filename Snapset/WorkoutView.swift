@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import SnapsetUI
 
 /// Shows the unfinished session if there is one (so a killed app resumes), otherwise the routine picker.
 struct WorkoutView: View {
@@ -20,7 +21,7 @@ struct WorkoutView: View {
             if let goingUp, !goingUp.isEmpty {
                 Text("Going up next time:\n" + goingUp.joined(separator: "\n"))
             } else {
-                Text("No weight increases yet. Hit the top of the rep range on every set to go up.")
+                Text("Same weights next time. Hit the top of the rep range on every set to go up.")
             }
         }
     }
@@ -39,20 +40,25 @@ struct StartWorkoutView: View {
                 Button {
                     countingDown = routine
                 } label: {
-                    VStack(alignment: .leading) {
-                        Text(routine.name.isEmpty ? "Untitled routine" : routine.name).font(.headline)
-                        Text("\(routine.items.count) exercises").font(.subheadline).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
+                        Text(routine.name.isEmpty ? "Untitled routine" : routine.name).snapText(.sectionTitle)
+                        Text("^[\(routine.items.count) exercise](inflect: true)").snapText(.secondary)
                     }
+                    .frame(minHeight: Snap.Tap.min, alignment: .leading)
                 }
-                .tint(.primary)
+                .tint(Color.snap.textPrimary)
                 .disabled(routine.items.isEmpty)
             }
+            .listRowBackground(Color.snap.surface)
             if !routines.isEmpty {
                 Section {
-                    Button("New routine", systemImage: "plus.circle.fill", action: newRoutine)
+                    Button("New routine", systemImage: "plus.circle", action: newRoutine)
+                        .frame(minHeight: Snap.Tap.min)
                 }
+                .listRowBackground(Color.snap.surface)
             }
         }
+        .snapListBackground()
         .overlay {
             if routines.isEmpty {
                 ContentUnavailableView {
@@ -60,7 +66,7 @@ struct StartWorkoutView: View {
                 } description: {
                     Text("Create a routine to plan the exercises for a workout day, then start it here.")
                 } actions: {
-                    Button("New routine", action: newRoutine).buttonStyle(.borderedProminent)
+                    PrimaryButton("New routine", action: newRoutine).padding(.horizontal, Snap.Spacing.xl)
                 }
             }
         }
@@ -111,24 +117,25 @@ struct CountdownView: View {
 
     var body: some View {
         VStack(spacing: 32) {
-            Text("Get ready").font(.title2.weight(.semibold)).foregroundStyle(.secondary)
+            Text("Get ready").snapText(.sectionTitle).foregroundStyle(Color.snap.textSecondary)
             ZStack {
-                Circle().stroke(.quaternary, lineWidth: 14)
+                Circle().stroke(Color.snap.surfaceRaised, lineWidth: 14)
                 Circle()
                     .trim(from: 0, to: Double(remaining) / Double(Self.seconds))
-                    .stroke(.green, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                    .stroke(Color.snap.accent, style: StrokeStyle(lineWidth: 14, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text(remaining > 0 ? "\(remaining)" : "Go")
-                    .font(.system(size: 120, weight: .bold, design: .rounded))
+                    .font(.system(size: 120, weight: .semibold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(Color.snap.textPrimary)
                     .contentTransition(.numericText(countsDown: true))
             }
             .frame(width: 240, height: 240)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(remaining > 0 ? "Starting in \(remaining)" : "Go")
-            Button("Cancel", action: onCancel).font(.headline)
+            SecondaryButton("Cancel", action: onCancel).fixedSize()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
+        .background(Color.snap.background)
         .sensoryFeedback(.impact, trigger: remaining)
         .task {
             while remaining > 0 {
@@ -161,34 +168,36 @@ struct SessionView: View {
                 VStack(spacing: 4) {
                     if session.pausedAt == nil {
                         Label("Workout in progress", systemImage: "record.circle")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.red)
+                            .snapText(.label)
+                            .foregroundStyle(Color.snap.textPrimary)
                             .symbolEffect(.pulse)
                     } else {
                         Label("Paused", systemImage: "pause.circle")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.orange)
+                            .snapText(.label)
+                            .foregroundStyle(Color.snap.statusHold)
                     }
+                    // Smaller than the target weights below: the weight is the biggest number on this screen.
                     ElapsedTime(startedAt: session.startedAt, pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds)
-                        .font(.system(size: 56, weight: .bold, design: .rounded).monospacedDigit())
-                        .foregroundStyle(session.pausedAt == nil ? .primary : .secondary)
+                        .font(.system(.title2, design: .rounded, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(session.pausedAt == nil ? Color.snap.textPrimary : Color.snap.textSecondary)
                         .contentTransition(.numericText())
                     // A workout left open overnight shows its date, so a stale one is easy to spot.
                     let today = Calendar.current.isDateInToday(session.startedAt)
                     Text("Started \(session.startedAt.formatted(date: today ? .omitted : .abbreviated, time: .shortened)) · \(session.sets.count) sets logged")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .snapText(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.top, 8)
                 .accessibilityElement(children: .combine)
-                WorkoutControls(paused: session.pausedAt != nil) {
+                WorkoutControls(paused: session.pausedAt != nil, allDone: upNext == nil) {
                     session.togglePause()
                     try? context.save()
                 } finish: {
                     confirmingFinish = true
                 }
             }
-            ForEach(Array(session.plan.enumerated()), id: \.offset) { _, planned in
+            .listRowBackground(Color.snap.surface)
+            ForEach(Array(session.plan.enumerated()), id: \.offset) { index, planned in
                 if let exercise = byID[planned.exerciseID] {
                     let sets = sets(of: exercise)
                     Section {
@@ -197,21 +206,29 @@ struct SessionView: View {
                             TargetRow(target: target, unit: unit)
                         }
                         ForEach(Array(sets.enumerated()), id: \.element.id) { index, set in
-                            LabeledContent("Set \(index + 1)", value: "\(unit.format(kg: set.weightKg)) × \(set.reps)")
+                            SetRow(number: index + 1, weight: unit.fromKg(set.weightKg), reps: set.reps, unit: unit.rawValue)
                         }
                         .onDelete { offsets in remove(offsets.map { sets[$0] }) }
 
-                        Button("Log set", systemImage: "plus.circle.fill") { logging = exercise }
+                        // Only the next exercise gets the orange button, so each screen has one accent.
+                        if index == upNext {
+                            PrimaryButton("Log set") { logging = exercise }
+                        } else {
+                            SecondaryButton("Log set", systemImage: "plus") { logging = exercise }
+                        }
                     } header: {
                         HStack {
-                            Text(exercise.name)
+                            Text(exercise.name).snapText(.sectionTitle).foregroundStyle(Color.snap.textPrimary)
                             Spacer()
-                            Text("\(sets.count)/\(planned.targetSets) sets")
+                            Text("\(sets.count) of \(planned.targetSets) sets").snapText(.secondary).monospacedDigit()
                         }
                     }
+                    .listRowBackground(Color.snap.surface)
                 }
             }
         }
+        .snapListBackground()
+        .sensoryFeedback(Snap.Haptic.setSaved, trigger: session.sets.count) { old, new in new > old }
         .navigationTitle(session.routineName ?? "Workout")
         // An alert, not a confirmationDialog: on iOS 26+ the dialog pops over the button instead of centering.
         .alert(session.sets.isEmpty ? "Discard this workout?" : "Finish this workout?", isPresented: $confirmingFinish) {
@@ -252,6 +269,14 @@ struct SessionView: View {
         return result
     }
 
+    /// Plan position of the first exercise with sets still to do, or nil when every planned set is logged.
+    private var upNext: Int? {
+        session.plan.indices.first { index in
+            let planned = session.plan[index]
+            return session.sets.filter { $0.exercise?.id == planned.exerciseID }.count < planned.targetSets
+        }
+    }
+
     private func sets(of exercise: Exercise) -> [SetEntry] {
         session.sets.filter { $0.exercise?.id == exercise.id }.sorted { $0.loggedAt < $1.loggedAt }
     }
@@ -277,67 +302,69 @@ struct SessionView: View {
 /// Pause and Finish under the timer; sets are logged from each exercise below.
 private struct WorkoutControls: View {
     let paused: Bool
+    let allDone: Bool  // Finish takes the accent once every planned set is logged
     let togglePause: () -> Void
     let finish: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            Button(action: togglePause) {
-                Control(title: paused ? "Resume" : "Pause", symbol: paused ? "play.fill" : "pause.fill")
+        // Snapset buttons use a plain style, which keeps each one tappable on its own inside a List row.
+        HStack(spacing: Snap.Spacing.s) {
+            SecondaryButton(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill", action: togglePause)
+            if allDone {
+                PrimaryButton("Finish", action: finish)
+            } else {
+                SecondaryButton("Finish", systemImage: "checkmark", action: finish)
             }
-            .tint(.orange)
-            Button(action: finish) {
-                Control(title: "Finish", symbol: "checkmark")
-            }
-            .tint(.red)
         }
-        .font(.subheadline.weight(.semibold))
         .lineLimit(1)
-        .buttonStyle(.bordered)  // a non-plain style keeps each button tappable on its own inside a List row
-        .buttonBorderShape(.roundedRectangle(radius: 14))
-        .padding(.bottom, 8)
+        .padding(.bottom, Snap.Spacing.s)
         .listRowSeparator(.hidden)
-    }
-
-    /// Icon above the word, like the Dynamic Island's buttons.
-    private struct Control: View {
-        let title: String
-        let symbol: String
-
-        var body: some View {
-            VStack(spacing: 4) {
-                Image(systemName: symbol).font(.title3)
-                Text(title)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-        }
     }
 }
 
+/// Number first, then the reason, so the next weight reads at a glance.
 private struct TargetRow: View {
     let target: Progression.Target
     let unit: WeightUnit
 
     var body: some View {
-        let reps = target.reps.count == 1 ? "\(target.reps.lowerBound) reps" : "\(target.reps.lowerBound)–\(target.reps.upperBound) reps"
-        switch (target.change, target.weightKg) {
-        case (.start, _), (_, nil):
-            Label("Find your starting weight · \(reps)", systemImage: "scope")
-                .foregroundStyle(.secondary)
-        case (let change, let kg?):
-            Label("Target \(unit.format(kg: kg)) · \(reps)", systemImage: change.symbol)
-                .foregroundStyle(change == .increase ? Color.green : change == .decrease ? Color.orange : Color.secondary)
+        let reps = target.reps.count == 1 ? "\(target.reps.lowerBound) reps" : "\(target.reps.lowerBound) to \(target.reps.upperBound) reps"
+        VStack(alignment: .leading, spacing: Snap.Spacing.s) {
+            if let kg = target.weightKg, target.change != .start {
+                HStack(alignment: .firstTextBaseline, spacing: Snap.Spacing.s) {
+                    Text(unit.fromKg(kg).formatted(.number.precision(.fractionLength(0...1))))
+                        .snapText(.numberMedium)
+                    Text("\(unit.rawValue) × \(reps)").snapText(.body)
+                }
+                .foregroundStyle(Color.snap.textPrimary)
+                .accessibilityElement(children: .combine)
+                HStack(alignment: .firstTextBaseline, spacing: Snap.Spacing.s) {
+                    StatusBadge(target.change.status)
+                    Text(target.change.reason).snapText(.secondary)
+                }
+            } else {
+                Text(reps).snapText(.numberMedium).foregroundStyle(Color.snap.textPrimary)
+                Text("First time? Pick a weight you can lift for \(reps) with good form.").snapText(.secondary)
+            }
         }
+        .padding(.vertical, Snap.Spacing.xs)
     }
 }
 
 private extension Progression.Target.Change {
-    var symbol: String {
+    var status: StatusBadge.Status {
         switch self {
-        case .increase: "arrow.up.circle.fill"
-        case .decrease: "arrow.down.circle.fill"
-        case .hold, .start: "equal.circle"
+        case .increase: .up
+        case .decrease: .lighter
+        case .hold, .start: .hold
+        }
+    }
+
+    var reason: String {
+        switch self {
+        case .increase: "You hit the top of the range on every set last time. Add weight."
+        case .decrease: "Missed the bottom of the range \(Progression.missesBeforeReduce) times in a row. Go a bit lighter."
+        case .hold, .start: "Same weight as last time. Aim for more reps."
         }
     }
 }
