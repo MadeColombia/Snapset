@@ -2,25 +2,22 @@ import SwiftUI
 
 public enum RoadmapStepState: Sendable { case done, current, upcoming }
 
-/// One step on the workout roadmap: a start time, a marker on the vertical line, and the step itself.
+/// One step on the workout roadmap: a marker on the vertical line, and the step itself.
 /// The current step is Iron raised with a Chalk leading line, never the accent; done steps collapse to one line with a check.
 public struct RoadmapStep<Content: View>: View {
     public typealias State = RoadmapStepState
 
-    let start: String
     let title: String
     let detail: String
     let state: State
     let isLast: Bool
     let onSelect: (() -> Void)?
     @ViewBuilder let content: Content
-    @Environment(\.dynamicTypeSize) private var typeSize
 
-    /// `start` is the step's planned start, e.g. "0:05". `content` is shown only while the step is current.
+    /// `content` is shown only while the step is current.
     /// `onSelect` makes a step that isn't current tappable.
-    public init(start: String, title: String, detail: String, state: State, isLast: Bool = false,
+    public init(title: String, detail: String, state: State, isLast: Bool = false,
                 onSelect: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
-        self.start = start
         self.title = title
         self.detail = detail
         self.state = state
@@ -30,12 +27,7 @@ public struct RoadmapStep<Content: View>: View {
     }
 
     public var body: some View {
-        // The time column moves into the card at accessibility sizes, where it would squeeze the step.
-        let sideTime = !typeSize.isAccessibilitySize
         HStack(alignment: .top, spacing: Snap.Spacing.m) {
-            if sideTime {
-                time.frame(width: 44, alignment: .trailing).padding(.top, Snap.Spacing.m)
-            }
             VStack(spacing: 0) {
                 marker.padding(.top, Snap.Spacing.m)
                 Rectangle().fill(isLast ? .clear : Color.snap.line).frame(width: 2).frame(maxHeight: .infinity)
@@ -43,25 +35,18 @@ public struct RoadmapStep<Content: View>: View {
             .accessibilityHidden(true)
             Group {
                 if state == .current {
-                    card(sideTime: sideTime)
+                    card
                 } else if let onSelect {
-                    Button(action: onSelect) { card(sideTime: sideTime) }
+                    Button(action: onSelect) { card }
                         .buttonStyle(.plain)
                         .accessibilityHint("Makes this the current step")
                 } else {
-                    card(sideTime: sideTime)
+                    card
                 }
             }
             .padding(.bottom, isLast ? 0 : Snap.Spacing.m)
         }
         .fixedSize(horizontal: false, vertical: true)  // lets the line run the full height of the step
-    }
-
-    private var time: some View {
-        Text(start)
-            .font(.system(.subheadline, design: .rounded, weight: .semibold).monospacedDigit())
-            .foregroundStyle(Color.snap.textSecondary)
-            .accessibilityLabel("Starts at \(start)")
     }
 
     @ViewBuilder private var marker: some View {
@@ -79,10 +64,9 @@ public struct RoadmapStep<Content: View>: View {
         }
     }
 
-    private func card(sideTime: Bool) -> some View {
+    private var card: some View {
         VStack(alignment: .leading, spacing: Snap.Spacing.m) {
             VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
-                if !sideTime { time }
                 if state == .done {
                     Text(detail).snapText(.body).foregroundStyle(Color.snap.textSecondary)
                 } else {
@@ -115,14 +99,14 @@ private struct RoadmapStepPreview: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                RoadmapStep(start: "0:00", title: "Leg press", detail: "Done. 3 sets of leg press.", state: .done, onSelect: {}) {
+                RoadmapStep(title: "Leg press", detail: "Done. 3 sets of leg press.", state: .done, onSelect: {}) {
                     EmptyView()
                 }
-                RoadmapStep(start: "0:07", title: "Chest press", detail: "3 × 6 to 12 · rest 90 s", state: .current) {
+                RoadmapStep(title: "Chest press", detail: "3 sets · about 7 min", state: .current) {
                     SetRow(number: 1, weight: 42.5, reps: 12)
-                    RestTimer(remaining: 74, next: "Next: 42.5 kg × 12", onSkip: {}, onAddThirty: {})
+                    RestTimer(remaining: 74, total: 90, next: "Next: 42.5 kg × 12", onSkip: {}, onAddThirty: {})
                 }
-                RoadmapStep(start: "0:14", title: "Seated row", detail: "3 × 6 to 12 · rest 90 s", state: .upcoming, isLast: true, onSelect: {}) {
+                RoadmapStep(title: "Seated row", detail: "3 sets · about 7 min", state: .upcoming, isLast: true, onSelect: {}) {
                     EmptyView()
                 }
             }

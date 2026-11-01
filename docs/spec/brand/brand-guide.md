@@ -131,12 +131,25 @@ The palette comes straight from the app icon: cast-iron graphite with a pin-oran
 
 ### Rules
 
-1. **One orange thing per screen.** Either the primary button or the coach card, never both competing. This is the visual version of P10.
+1. **One orange thing per screen.** Either the primary button or the coach card, never both competing. This is the visual version of P10. Exception: while a workout is paused, the paused timers and *Resume* are orange together, because they say one thing (see Action colours).
 2. **Text on orange is Graphite, not white.** Graphite on Pin orange is 5.8:1; white or chalk on Pin orange is about 2.7:1 and fails. In light mode, the deeper orange `#C9400F` takes white text (5.0:1).
 3. **Orange text is for large text and icons only on raised surfaces.** Pin orange on Iron raised is 4.3:1, which passes for text 18 pt and larger but not for body text.
 4. **Grey does the work.** 90% of any screen is Graphite, Iron and Chalk. If a screen looks colourful, something is wrong.
 
 Contrast ratios checked with the WCAG 2.1 formula (script in this thread). All text pairs in the tables above are 4.5:1 or better on their own background, except where rule 3 says otherwise.
+
+### Action colours (decided 2026-11-01)
+
+The workout controls are coloured by what they do, so they read at a glance mid-set. Always with an icon and a word.
+
+| Action | Colour | Icon |
+|---|---|---|
+| *Finish* | Sage | `checkmark` |
+| *Resume*, and the paused timers | Pin orange | `play.fill` |
+| *Pause* | Amber (not red) | `pause.fill` |
+| *Log set* | Pin orange (neutral while paused, when *Resume* has the orange) | none |
+
+Text on these fills follows rule 2: Graphite in dark mode, white in light mode on the deeper light-mode colours (Sage `#1F7A4D` 5.4:1, Amber `#8A5A00` 5.8:1, orange `#C9400F` 5.0:1). Running, the workout clock is Chalk and the rest ring is Sage; paused, both turn orange.
 
 ## 6. Typography
 

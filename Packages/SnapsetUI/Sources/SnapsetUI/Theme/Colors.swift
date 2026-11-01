@@ -15,6 +15,14 @@ public struct SnapColors: Sendable {
     public let statusUp = Color("statusUp", bundle: .module)
     public let statusHold = Color("statusHold", bundle: .module)
     public let statusDown = Color("statusDown", bundle: .module)
+
+    // Action colours for the workout controls, always with an icon and a word. Text on them is `onAccent`.
+    /// Finish: done, a good thing.
+    public var actionFinish: Color { statusUp }
+    /// Resume and the paused timer: the one thing to do next.
+    public var actionResume: Color { accent }
+    /// Pause: stop for now. Amber, not red (decided 2026-11-01).
+    public var actionPause: Color { statusDown }
 }
 
 extension Color {

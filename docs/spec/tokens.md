@@ -40,9 +40,21 @@ Heatmap steps (4 levels, more sets = stronger): `statusUp` at 25%, 50%, 75% and 
 
 ### Colour rules
 
-1. **One `accent` per screen.** If a coach card is on screen, the primary button uses the neutral style.
+1. **One `accent` per screen.** If a coach card is on screen, the primary button uses the neutral style. Exception: a paused workout shows its timers and *Resume* in `actionResume` together.
 2. **Status colour never alone.** Always with its SF Symbol and a word: `arrow.up` / `checkmark` (up), `equal` / `info.circle` (hold), `arrow.down` / `exclamationmark.circle` (down).
 3. **No red** outside `destructive`.
+
+### Action colours
+
+Semantic tokens for the workout controls, each an alias so a change is one line in `Colors.swift`. Button styles `PrimaryButton(style: .finish / .resume / .pause)` use them, with `onAccent` text (Graphite dark, white light; all AA).
+
+| Token | Alias of | Use |
+|---|---|---|
+| `actionFinish` | `statusUp` (Sage) | *Finish*, `checkmark` |
+| `actionResume` | `accent` (Pin orange) | *Resume* `play.fill`, the workout clock and rest ring while paused |
+| `actionPause` | `statusDown` (Amber) | *Pause*, `pause.fill` |
+
+The workout clock and the rest countdown use `heroNumber`. Running: clock `textPrimary`, rest ring `statusUp`. Paused: both `actionResume`.
 
 ## 2. Type
 
@@ -112,7 +124,7 @@ The component kit (M1) uses only the tokens above. The visual rules each one mus
 | Suggestion line | none | `info.circle` + `secondary` | At most one text action |
 | Banner | `surface` | status symbol + `body` | Amber for problems, Sky for information |
 | Undo toast | `surfaceRaised` | `body` + *Undo* | 5 s, `motion.quick` |
-| Roadmap step | `surface`; current step `surfaceRaised` with a 2 pt `textPrimary` leading line | Start time in `numberMedium`-style digits | Done steps collapse with a `statusUp` check |
+| Roadmap step | `surface`; current step `surfaceRaised` with a 2 pt `textPrimary` leading line | `sectionTitle` name, "3 sets · about 7 min" in `secondary` (no start times, removed 2026-11-01) | Done steps collapse with a `statusUp` check |
 | Time bar | track `surfaceRaised` | fill `statusUp` when it fits, `statusDown` when over | Always with the minutes as text |
 
 ## 6. Approval
