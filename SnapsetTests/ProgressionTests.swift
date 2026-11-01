@@ -63,3 +63,70 @@ struct ProgressionTests {
         #expect(abs(WeightUnit.lb.fromKg(try #require(target.weightKg)) - 140) < 0.001)
     }
 }
+
+struct ProgressionReasonTests {
+    static func sets(_ kg: Double, _ reps: Int...) -> [Progression.LoggedSet] { reps.map { .init(weightKg: kg, reps: $0) } }
+
+    /// Weights as the device formats them, so the tests pass in any locale ("2,5 kg" in many).
+    static func kg(_ value: Double) -> String { WeightUnit.kg.format(kg: value) }
+
+    static func reason(_ sessions: [[Progression.LoggedSet]], equipment: Equipment = .barbell, unit: WeightUnit = .kg, reps: Int? = nil) -> String {
+        Progression.next(goal: .muscle, equipment: equipment, unit: unit, sets: 3, reps: reps, sessions: sessions).reason
+    }
+
+    @Test func increaseNamesTheRepsAndTheStep() {
+        #expect(Self.reason([Self.sets(60, 12, 12, 12)]) == "You got 12 on every set. Add \(Self.kg(2.5)).")
+        #expect(Self.reason([Self.sets(60, 13, 12, 12)]) == "You got 12 or more on every set. Add \(Self.kg(2.5)).")
+        #expect(Self.reason([Self.sets(40, 12, 12, 12)], equipment: .machine) == "You got 12 on every set. Add 5 kg.")
+        #expect(Self.reason([Self.sets(60, 8, 8, 8)], reps: 8) == "You got 8 on every set. Add \(Self.kg(2.5)).")
+    }
+
+    @Test func increaseOffThePoundGridNamesTheNewWeight() {
+        // 60 kg is 132.3 lb, so the next mark is 135 lb, not 2.7 lb more.
+        #expect(Self.reason([Self.sets(60, 12, 12, 12)], unit: .lb) == "You got 12 on every set. Go up to 135 lb.")
+    }
+
+    @Test func holdSaysWhatWasShort() {
+        #expect(Self.reason([Self.sets(60, 12, 12, 10)]) == "You got 12, 12, 10 at 60 kg. Get 12 on every set to add weight.")
+        #expect(Self.reason([Self.sets(60, 12, 12)]) == "You did 2 of 3 sets at 60 kg. Do all 3 to add weight.")
+        #expect(Self.reason([Self.sets(0, 12, 12, 12)], equipment: .bodyweight) == "You got 12, 12, 12. Aim for one more rep.")
+    }
+
+    @Test func decreaseNamesTheMissAndTheLighterWeight() {
+        #expect(Self.reason([Self.sets(60, 5, 4, 4), Self.sets(60, 6, 5, 5)]) == "Under 6 reps at 60 kg the last 2 times. Try \(Self.kg(52.5)).")
+    }
+
+    @Test func noHistoryAsksForAStartingWeight() {
+        #expect(Self.reason([]) == "Find your starting weight: pick one you can lift 9 times with good form.")
+        #expect(Self.reason([], reps: 10) == "Find your starting weight: pick one you can lift 10 times with good form.")
+    }
+}
+
+struct NewBestTests {
+    typealias S = Progression.LoggedSet
+
+    @Test func heavierThanEverIsABest() {
+        #expect(Progression.isNewBest(S(weightKg: 52.5, reps: 5), previous: [S(weightKg: 50, reps: 12), S(weightKg: 45, reps: 12)]))
+    }
+
+    @Test func matchingOrLighterIsNot() {
+        let previous = [S(weightKg: 50, reps: 8)]
+        #expect(!Progression.isNewBest(S(weightKg: 50, reps: 12), previous: previous))
+        #expect(!Progression.isNewBest(S(weightKg: 47.5, reps: 15), previous: previous))
+    }
+
+    @Test func firstSetEverIsNot() {
+        #expect(!Progression.isNewBest(S(weightKg: 100, reps: 5), previous: []))
+    }
+
+    @Test func poundRoundingIsNotABest() {
+        let kg = WeightUnit.lb.toKg(135)
+        #expect(!Progression.isNewBest(S(weightKg: kg + 0.0001, reps: 10), previous: [S(weightKg: kg, reps: 10)]))
+    }
+
+    @Test func bodyweightCountsReps() {
+        let previous = [S(weightKg: 0, reps: 12), S(weightKg: 0, reps: 10)]
+        #expect(Progression.isNewBest(S(weightKg: 0, reps: 13), previous: previous))
+        #expect(!Progression.isNewBest(S(weightKg: 0, reps: 12), previous: previous))
+    }
+}

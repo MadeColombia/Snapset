@@ -58,6 +58,8 @@ public struct SecondaryButton: View {
             .frame(minWidth: Snap.Tap.logging)
             .foregroundStyle(Color.snap.textPrimary)
             .background(Color.snap.surfaceRaised, in: .rect(cornerRadius: Snap.Radius.control))
+            // Hairline so the button still reads on an Iron raised surface, like the current roadmap step.
+            .overlay(RoundedRectangle(cornerRadius: Snap.Radius.control).strokeBorder(Color.snap.line))
         }
         .buttonStyle(.plain)
     }

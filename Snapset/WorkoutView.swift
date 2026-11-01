@@ -6,24 +6,28 @@ import SnapsetUI
 struct WorkoutView: View {
     @Query(filter: WorkoutSession.isActive, sort: \WorkoutSession.startedAt, order: .reverse) private var active: [WorkoutSession]
     @State private var goingUp: [String]?
+    @State private var best: String?
 
     var body: some View {
         NavigationStack {
             if let session = active.first {
-                SessionView(session: session) { goingUp = $0 }
+                SessionView(session: session) { goingUp = $0; best = $1 }
             } else {
                 StartWorkoutView()
             }
         }
-        .alert("Workout saved", isPresented: Binding(get: { goingUp != nil }, set: { if !$0 { goingUp = nil } })) {
+        .alert("Workout saved", isPresented: Binding(get: { goingUp != nil }, set: { if !$0 { goingUp = nil; best = nil } })) {
             Button("OK") {}
         } message: {
+            // The new best is the summary's one cheer, so it leads.
+            let cheer = best.map { $0 + "\n\n" } ?? ""
             if let goingUp, !goingUp.isEmpty {
-                Text("Going up next time:\n" + goingUp.joined(separator: "\n"))
+                Text(cheer + "Going up next time:\n" + goingUp.joined(separator: "\n"))
             } else {
-                Text("Same weights next time. Hit the top of the rep range on every set to go up.")
+                Text(cheer + "Same weights next time. Try for one more rep.")
             }
         }
+        .sensoryFeedback(Snap.Haptic.newBest, trigger: best) { _, new in new != nil }
     }
 }
 
@@ -150,85 +154,84 @@ struct CountdownView: View {
     }
 }
 
+/// The workout as a roadmap: one step per planned exercise, top to bottom, with planned start times.
+/// The current step is open; done steps collapse; any step can be tapped to make it current.
 struct SessionView: View {
     @Environment(\.modelContext) private var context
     @AppStorage("weightUnit") private var unit: WeightUnit = .kg
     @AppStorage("goal") private var goal: Goal = .muscle
     @Bindable var session: WorkoutSession
-    let onFinish: (_ goingUp: [String]) -> Void
+    let onFinish: (_ goingUp: [String], _ best: String?) -> Void
     @Query private var exercises: [Exercise]
     @State private var logging: Exercise?
     @State private var confirmingFinish = false
     @State private var targets: [String: Progression.Target] = [:]
+    @State private var chosen: Int?  // a step the lifter tapped; nil follows the plan
+    @State private var restEnds: Date?
+    @State private var toast: Toast?
+
+    init(session: WorkoutSession, restingUntil: Date? = nil, onFinish: @escaping (_ goingUp: [String], _ best: String?) -> Void) {
+        self.session = session
+        self.onFinish = onFinish
+        _restEnds = State(initialValue: restingUntil)
+    }
+
+    struct Toast: Equatable {
+        let id = UUID()
+        let set: SetEntry
+        let message: String
+        let isBest: Bool
+
+        static func == (a: Toast, b: Toast) -> Bool { a.id == b.id }
+    }
 
     var body: some View {
         let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        List {
-            Section {
-                VStack(spacing: 4) {
-                    if session.pausedAt == nil {
-                        Label("Workout in progress", systemImage: "record.circle")
-                            .snapText(.label)
-                            .foregroundStyle(Color.snap.textPrimary)
-                            .symbolEffect(.pulse)
-                    } else {
-                        Label("Paused", systemImage: "pause.circle")
-                            .snapText(.label)
-                            .foregroundStyle(Color.snap.statusHold)
+        let current = chosen ?? upNext
+        let starts = startTimes
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: Snap.Spacing.xl) {
+                    header
+                    VStack(spacing: 0) {
+                        ForEach(Array(session.plan.enumerated()), id: \.offset) { index, planned in
+                            if let exercise = byID[planned.exerciseID] {
+                                step(index: index, planned: planned, exercise: exercise, start: starts[index], current: current)
+                                    .id(index)
+                            }
+                        }
                     }
-                    // Smaller than the target weights below: the weight is the biggest number on this screen.
-                    ElapsedTime(startedAt: session.startedAt, pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds)
-                        .font(.system(.title2, design: .rounded, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(session.pausedAt == nil ? Color.snap.textPrimary : Color.snap.textSecondary)
-                        .contentTransition(.numericText())
-                    // A workout left open overnight shows its date, so a stale one is easy to spot.
-                    let today = Calendar.current.isDateInToday(session.startedAt)
-                    Text("Started \(session.startedAt.formatted(date: today ? .omitted : .abbreviated, time: .shortened)) · \(session.sets.count) sets logged")
-                        .snapText(.secondary)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.top, 8)
-                .accessibilityElement(children: .combine)
-                WorkoutControls(paused: session.pausedAt != nil, allDone: upNext == nil) {
-                    session.togglePause()
-                    try? context.save()
-                } finish: {
-                    confirmingFinish = true
-                }
+                .padding(Snap.Spacing.l)
+                .padding(.bottom, toast == nil ? 0 : 80)  // room to scroll the last step clear of the toast
             }
-            .listRowBackground(Color.snap.surface)
-            ForEach(Array(session.plan.enumerated()), id: \.offset) { index, planned in
-                if let exercise = byID[planned.exerciseID] {
-                    let sets = sets(of: exercise)
-                    Section {
-                        ExerciseDemo(exercise: exercise)
-                        if let target = targets[exercise.id] {
-                            TargetRow(target: target, unit: unit)
-                        }
-                        ForEach(Array(sets.enumerated()), id: \.element.id) { index, set in
-                            SetRow(number: index + 1, weight: unit.fromKg(set.weightKg), reps: set.reps, unit: unit.rawValue)
-                        }
-                        .onDelete { offsets in remove(offsets.map { sets[$0] }) }
-
-                        // Only the next exercise gets the orange button, so each screen has one accent.
-                        if index == upNext {
-                            PrimaryButton("Log set") { logging = exercise }
-                        } else {
-                            SecondaryButton("Log set", systemImage: "plus") { logging = exercise }
-                        }
-                    } header: {
-                        HStack {
-                            Text(exercise.name).snapText(.sectionTitle).foregroundStyle(Color.snap.textPrimary)
-                            Spacer()
-                            Text("\(sets.count) of \(planned.targetSets) sets").snapText(.secondary).monospacedDigit()
-                        }
-                    }
-                    .listRowBackground(Color.snap.surface)
-                }
+            .onAppear { if let current { proxy.scrollTo(current, anchor: .top) } }
+            .onChange(of: current) { _, new in
+                if let new { withAnimation(Snap.Motion.standard) { proxy.scrollTo(new, anchor: .top) } }
             }
         }
-        .snapListBackground()
-        .sensoryFeedback(Snap.Haptic.setSaved, trigger: session.sets.count) { old, new in new > old }
+        .background(Color.snap.background)
+        .snapAnimation(value: current)
+        .snapAnimation(value: restEnds)
+        .overlay(alignment: .bottom) {
+            if let toast {
+                UndoToast(toast.message, isBest: toast.isBest) { undo(toast.set) }
+                    .padding(Snap.Spacing.l)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .snapAnimation(Snap.Motion.quick, value: toast)
+        .sensoryFeedback(trigger: toast) { _, new in new.map { $0.isBest ? Snap.Haptic.newBest : Snap.Haptic.setSaved } }
+        .task(id: toast?.id) {
+            guard toast != nil else { return }
+            try? await Task.sleep(for: .seconds(5))
+            if !Task.isCancelled { toast = nil }
+        }
+        .task(id: restEnds) {
+            guard let restEnds else { return }
+            try? await Task.sleep(for: .seconds(max(0, restEnds.timeIntervalSinceNow)))
+            if !Task.isCancelled { self.restEnds = nil }
+        }
         .navigationTitle(session.routineName ?? "Workout")
         // An alert, not a confirmationDialog: on iOS 26+ the dialog pops over the button instead of centering.
         .alert(session.sets.isEmpty ? "Discard this workout?" : "Finish this workout?", isPresented: $confirmingFinish) {
@@ -244,8 +247,7 @@ struct SessionView: View {
             SetConfirmView(exercise: exercise,
                            targetKg: target?.weightKg,
                            targetReps: target?.change == .hold ? nil : target?.reps.lowerBound) { weightKg, reps in
-                session.sets.append(SetEntry(exercise: exercise, weightKg: weightKg, reps: reps))
-                try? context.save()  // save each set at once so a killed app loses nothing
+                log(exercise, weightKg: weightKg, reps: reps)
             }
         }
         // Keeps the Dynamic Island's next set and pause state in step with this screen.
@@ -255,6 +257,117 @@ struct SessionView: View {
         .task(id: "\(goal.rawValue)-\(unit.rawValue)") {
             targets = nextTargets(excluding: session)
         }
+    }
+
+    private var header: some View {
+        VStack(spacing: Snap.Spacing.m) {
+            VStack(spacing: Snap.Spacing.xs) {
+                if session.pausedAt != nil {
+                    Label("Paused", systemImage: "pause.circle")
+                        .snapText(.label)
+                        .foregroundStyle(Color.snap.statusHold)
+                }
+                // Smaller than the target weight below: the weight is the biggest number on this screen.
+                ElapsedTime(startedAt: session.startedAt, pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds)
+                    .snapText(.numberMedium)
+                    .foregroundStyle(session.pausedAt == nil ? Color.snap.textPrimary : Color.snap.textSecondary)
+                    .contentTransition(.numericText())
+                // A workout left open overnight shows its date, so a stale one is easy to spot.
+                let today = Calendar.current.isDateInToday(session.startedAt)
+                Text("Started \(session.startedAt.formatted(date: today ? .omitted : .abbreviated, time: .shortened)) · \(session.sets.count) sets logged")
+                    .snapText(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .combine)
+            WorkoutControls(paused: session.pausedAt != nil, allDone: upNext == nil) {
+                session.togglePause()
+                try? context.save()
+            } finish: {
+                confirmingFinish = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func step(index: Int, planned: PlannedExercise, exercise: Exercise, start: String, current: Int?) -> some View {
+        let logged = sets(of: exercise)
+        let done = logged.count >= planned.targetSets
+        let target = targets[exercise.id]
+        let reps = (target?.reps).map(Self.repsText) ?? "\(planned.targetReps ?? goal.repRange.lowerBound) reps"
+        let state: RoadmapStepState = index == current ? .current : done ? .done : .upcoming
+        let detail = switch state {
+        case .done: "Done. \(logged.count) sets of \(exercise.name.lowercased())."
+        case _ where !logged.isEmpty: "\(logged.count) of \(planned.targetSets) sets · \(reps)"
+        default: "\(planned.targetSets) × \(reps) · rest \(goal.restSeconds) s"
+        }
+        RoadmapStep(start: start, title: exercise.name, detail: detail, state: state,
+                    isLast: index == session.plan.count - 1, onSelect: { chosen = index }) {
+            if let restEnds {
+                // Between sets the step goes quiet: the countdown and what comes next.
+                TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                    RestTimer(remaining: restEnds.timeIntervalSince(timeline.date), next: nextLine) {
+                        self.restEnds = nil
+                    } onAddThirty: {
+                        self.restEnds = restEnds.addingTimeInterval(30)
+                    }
+                }
+                setRows(logged)
+            } else {
+                ExerciseDemo(exercise: exercise)
+                if target?.change == .start {
+                    Text("First time? Watch the loop, then go light.").snapText(.secondary)
+                }
+                if let target { TargetBlock(target: target, unit: unit) }
+                setRows(logged)
+                // Only the step with sets still to do gets the orange button, so each screen has one accent.
+                if done {
+                    SecondaryButton("Log another set", systemImage: "plus") { logging = exercise }
+                } else {
+                    PrimaryButton("Log set") { logging = exercise }
+                }
+            }
+        }
+    }
+
+    private func setRows(_ logged: [SetEntry]) -> some View {
+        ForEach(Array(logged.enumerated()), id: \.element.id) { index, set in
+            SetRow(number: index + 1, weight: unit.fromKg(set.weightKg), reps: set.reps, unit: unit.rawValue)
+                .contextMenu {
+                    Button("Delete set", systemImage: "trash") { remove(set) }
+                }
+        }
+    }
+
+    static func repsText(_ reps: ClosedRange<Int>) -> String {
+        reps.count == 1 ? "\(reps.lowerBound) reps" : "\(reps.lowerBound) to \(reps.upperBound) reps"
+    }
+
+    /// Planned start of each step from 0:00, as "h:mm": every set plus the rest after it.
+    private var startTimes: [String] {
+        var seconds = 0
+        return session.plan.map { planned in
+            defer { seconds += planned.targetSets * (Self.secondsPerSet + goal.restSeconds) }
+            return String(format: "%d:%02d", seconds / 3600, seconds / 60 % 60)
+        }
+    }
+
+    /// shortcut: a fixed guess at how long one set takes; upgrade once timed sets are measured.
+    private static let secondsPerSet = 40
+
+    /// "Next: 42.5 kg × 10" under the rest timer: another set of the current exercise, or the first set of the next one.
+    private var nextLine: String? {
+        let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        if let index = chosen ?? upNext, let exercise = byID[session.plan[index].exerciseID],
+           sets(of: exercise).count < session.plan[index].targetSets, let last = sets(of: exercise).last {
+            return "Next: " + load(kg: last.weightKg, reps: last.reps)
+        }
+        guard let index = upNext, let exercise = byID[session.plan[index].exerciseID] else { return nil }
+        guard let target = targets[exercise.id], let kg = target.weightKg else { return "Next: \(exercise.name)" }
+        return "Next: \(exercise.name), " + load(kg: kg, reps: target.reps.lowerBound)
+    }
+
+    private func load(kg: Double, reps: Int) -> String {
+        kg > 0 ? "\(unit.format(kg: kg)) × \(reps)" : "\(reps) reps"
     }
 
     /// Targets per exercise from past sessions; pass nil to include this one (the post-workout summary).
@@ -281,25 +394,59 @@ struct SessionView: View {
         session.sets.filter { $0.exercise?.id == exercise.id }.sorted { $0.loggedAt < $1.loggedAt }
     }
 
-    private func remove(_ removed: [SetEntry]) {
-        session.sets.removeAll { removed.contains($0) }
-        removed.forEach(context.delete)
+    /// Every set of `exercise` before now: past sessions and this one.
+    private func previousSets(of exercise: Exercise) -> [Progression.LoggedSet] {
+        (Progression.history(of: exercise.id, excluding: session, in: context).flatMap { $0 } + sets(of: exercise).map {
+            Progression.LoggedSet(weightKg: $0.weightKg, reps: $0.reps)
+        })
+    }
+
+    private func log(_ exercise: Exercise, weightKg: Double, reps: Int) {
+        let isBest = Progression.isNewBest(.init(weightKg: weightKg, reps: reps), previous: previousSets(of: exercise))
+        let entry = SetEntry(exercise: exercise, weightKg: weightKg, reps: reps)
+        session.sets.append(entry)
+        try? context.save()  // save each set at once so a killed app loses nothing
+        toast = Toast(set: entry, message: isBest ? "New best: \(load(kg: weightKg, reps: reps)) on \(exercise.name.lowercased())!" : "Set saved",
+                      isBest: isBest)
+        // A finished step hands over to the next one with sets to do.
+        if let index = chosen, sets(of: exercise).count >= session.plan[index].targetSets { chosen = nil }
+        restEnds = upNext == nil ? nil : .now.addingTimeInterval(Double(goal.restSeconds))
+    }
+
+    private func undo(_ set: SetEntry) {
+        toast = nil
+        restEnds = nil
+        remove(set)
+    }
+
+    private func remove(_ set: SetEntry) {
+        session.sets.removeAll { $0 == set }
+        context.delete(set)
         try? context.save()
     }
 
     private func finish() {
-        guard session.finish(in: context) else { return }  // discarded, or a second tap
         let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        // The first exercise (in plan order) with a heavier top set than ever is the summary's one cheer.
+        let best = session.plan.lazy.compactMap { planned -> String? in
+            guard let exercise = byID[planned.exerciseID],
+                  let top = sets(of: exercise).max(by: { ($0.weightKg, $0.reps) < ($1.weightKg, $1.reps) }),
+                  Progression.isNewBest(.init(weightKg: top.weightKg, reps: top.reps),
+                                        previous: Progression.history(of: exercise.id, excluding: session, in: context).flatMap { $0 })
+            else { return nil }
+            return "New best: \(load(kg: top.weightKg, reps: top.reps)) on \(exercise.name.lowercased())!"
+        }.first
+        guard session.finish(in: context) else { return }  // discarded, or a second tap
         let trained = Set(session.sets.compactMap(\.exercise?.id))
         let goingUp = nextTargets(excluding: nil).compactMap { id, target -> String? in
             guard trained.contains(id), target.change == .increase, let kg = target.weightKg, let name = byID[id]?.name else { return nil }
             return "\(name): \(unit.format(kg: kg))"
         }
-        onFinish(goingUp.sorted())
+        onFinish(goingUp.sorted(), best)
     }
 }
 
-/// Pause and Finish under the timer; sets are logged from each exercise below.
+/// Pause and Finish under the timer; sets are logged from the current step below.
 private struct WorkoutControls: View {
     let paused: Bool
     let allDone: Bool  // Finish takes the accent once every planned set is logged
@@ -314,7 +461,6 @@ private struct WorkoutControls: View {
                                                   : AnyLayout(HStackLayout(spacing: Snap.Spacing.s))
         layout { buttons }
             .padding(.bottom, Snap.Spacing.s)
-        .listRowSeparator(.hidden)
     }
 
     @ViewBuilder private var buttons: some View {
@@ -328,31 +474,29 @@ private struct WorkoutControls: View {
 }
 
 /// Number first, then the reason, so the next weight reads at a glance.
-private struct TargetRow: View {
+private struct TargetBlock: View {
     let target: Progression.Target
     let unit: WeightUnit
 
     var body: some View {
-        let reps = target.reps.count == 1 ? "\(target.reps.lowerBound) reps" : "\(target.reps.lowerBound) to \(target.reps.upperBound) reps"
+        let reps = SessionView.repsText(target.reps)
         VStack(alignment: .leading, spacing: Snap.Spacing.s) {
             if let kg = target.weightKg, target.change != .start {
-                HStack(alignment: .firstTextBaseline, spacing: Snap.Spacing.s) {
-                    Text(unit.fromKg(kg).formatted(.number.precision(.fractionLength(0...1))))
-                        .snapText(.numberMedium)
-                    Text("\(unit.rawValue) × \(reps)").snapText(.body)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline, spacing: Snap.Spacing.s) {
+                        Text(unit.fromKg(kg).formatted(.number.precision(.fractionLength(0...1)))).snapText(.heroNumber)
+                        Text(unit.rawValue).snapText(.heroUnit)
+                    }
+                    Text("× \(reps) · \(target.sets) sets").snapText(.body)
                 }
                 .foregroundStyle(Color.snap.textPrimary)
                 .accessibilityElement(children: .combine)
-                HStack(alignment: .firstTextBaseline, spacing: Snap.Spacing.s) {
-                    StatusBadge(target.change.status)
-                    Text(target.change.reason).snapText(.secondary)
-                }
+                StatusBadge(target.change.status)
             } else {
                 Text(reps).snapText(.numberMedium).foregroundStyle(Color.snap.textPrimary)
-                Text("First time? Pick a weight you can lift for \(reps) with good form.").snapText(.secondary)
             }
+            Text(target.reason).snapText(.secondary)
         }
-        .padding(.vertical, Snap.Spacing.xs)
     }
 }
 
@@ -362,14 +506,6 @@ private extension Progression.Target.Change {
         case .increase: .up
         case .decrease: .lighter
         case .hold, .start: .hold
-        }
-    }
-
-    var reason: String {
-        switch self {
-        case .increase: "You hit the top of the range on every set last time. Add weight."
-        case .decrease: "Missed the bottom of the range \(Progression.missesBeforeReduce) times in a row. Go a bit lighter."
-        case .hold, .start: "Same weight as last time. Aim for more reps."
         }
     }
 }

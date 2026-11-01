@@ -15,6 +15,7 @@ struct ScreenSnapshotTests {
     let container: ModelContainer  // must outlive the context, or SwiftData traps
     let context: ModelContext
     let session: WorkoutSession
+    let legs: Exercise
     let press: Exercise
     let routine: Routine
 
@@ -28,7 +29,7 @@ struct ScreenSnapshotTests {
         let byID = Dictionary(try context.fetch(FetchDescriptor<Exercise>()).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         press = byID["machine.chest-press"]!
         let row = byID["machine.seated-row"]!
-        let legs = byID["machine.leg-press"]!
+        legs = byID["machine.leg-press"]!
 
         routine = Routine(name: "Upper and lower A")
         context.insert(routine)
@@ -53,11 +54,10 @@ struct ScreenSnapshotTests {
             past.finishedAt = day.addingTimeInterval(3_600)
         }
 
+        // One open session, stepped through the workout states as the screens render (a second open one would count as history).
         session = WorkoutSession(routine: routine)
         session.startedAt = .now.addingTimeInterval(-1_934)
         context.insert(session)
-        for _ in 0..<3 { session.sets.append(SetEntry(exercise: legs, weightKg: 100, reps: 12)) }
-        session.sets.append(SetEntry(exercise: press, weightKg: 47.5, reps: 12))
         try context.save()
         UserDefaults.standard.set("kg", forKey: "weightUnit")
         UserDefaults.standard.set("muscle", forKey: "goal")
@@ -65,22 +65,32 @@ struct ScreenSnapshotTests {
 
     @Test(.enabled(if: ProcessInfo.processInfo.environment["SNAPSHOTS"] != nil))
     func renderScreens() throws {
-        let screens: [(String, AnyView)] = [
-            ("start-workout", AnyView(NavigationStack { StartWorkoutView() })),
-            ("countdown", AnyView(CountdownView(onFinish: {}, onCancel: {}))),
-            ("workout", AnyView(NavigationStack { SessionView(session: session) { _ in } })),
-            ("set-confirm", AnyView(SetConfirmView(exercise: press, targetKg: 50, targetReps: 8) { _, _ in })),
-            ("running-bar", AnyView(VStack { Spacer(); RunningWorkoutBar(session: session) {} }.background(Color.snap.background))),
-            ("routines", AnyView(RoutineListView())),
-            ("routine-editor", AnyView(NavigationStack { RoutineEditorView(routine: routine) })),
-            ("progress", AnyView(HistoryView())),
-            ("exercise-detail", AnyView(NavigationStack { ExerciseDetailView(exercise: press) })),
-            ("onboarding", AnyView(OnboardingView())),
-            ("settings", AnyView(SettingsView())),
+        let workout = { (legSets: Int, pressSets: Int, resting: Bool) -> AnyView in
+            session.sets.forEach(context.delete)
+            session.sets = (0..<legSets).map { SetEntry(exercise: legs, weightKg: 100, reps: 12, loggedAt: .now.addingTimeInterval(Double($0 - 4) * 150)) }
+                + (0..<pressSets).map { _ in SetEntry(exercise: press, weightKg: 47.5, reps: 12) }
+            try? context.save()
+            return AnyView(NavigationStack { SessionView(session: session, restingUntil: resting ? .now.addingTimeInterval(75) : nil) { _, _ in } })
+        }
+        let screens: [(String, () -> AnyView)] = [
+            ("start-workout", { AnyView(NavigationStack { StartWorkoutView() }) }),
+            ("countdown", { AnyView(CountdownView(onFinish: {}, onCancel: {})) }),
+            ("workout-first-set", { workout(0, 0, false) }),
+            ("workout-exercise-done", { workout(3, 0, false) }),
+            ("workout-rest", { workout(3, 1, true) }),  // leaves the session mid-workout for the screens below
+            ("set-confirm", { AnyView(SetConfirmView(exercise: press, targetKg: 50, targetReps: 8) { _, _ in }) }),
+            ("running-bar", { AnyView(VStack { Spacer(); RunningWorkoutBar(session: session) {} }.background(Color.snap.background)) }),
+            ("routines", { AnyView(RoutineListView()) }),
+            ("routine-editor", { AnyView(NavigationStack { RoutineEditorView(routine: routine) }) }),
+            ("progress", { AnyView(HistoryView()) }),
+            ("exercise-detail", { AnyView(NavigationStack { ExerciseDetailView(exercise: press) }) }),
+            ("onboarding", { AnyView(OnboardingView()) }),
+            ("settings", { AnyView(SettingsView()) }),
         ]
         let dir = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appending(path: "design/previews")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        for (name, view) in screens {
+        for (name, make) in screens {
+            let view = make()
             for variant in ["dark", "light", "ax5"] {
                 let themed = view
                     .tint(Color.snap.textPrimary)

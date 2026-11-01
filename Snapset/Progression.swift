@@ -20,6 +20,16 @@ enum Goal: String, CaseIterable {
         case .lean: 10...15
         }
     }
+
+    /// Rest between sets, in seconds.
+    /// shortcut: one rest per goal, since routines don't store a rest per exercise yet; upgrade when the editor gets a rest field (F2b).
+    var restSeconds: Int {
+        switch self {
+        case .strength: 180
+        case .muscle: 90
+        case .lean: 60
+        }
+    }
 }
 
 /// Double progression: hit the top of the rep range on every set, then add the smallest load step.
@@ -35,6 +45,8 @@ enum Progression {
         var weightKg: Double?  // nil without history: the user finds a starting weight
         var reps: ClosedRange<Int>
         var sets: Int
+        /// Why, in the numbers from last time: "You got 12 on every set. Add 2.5 kg."
+        var reason: String
     }
 
     /// Sessions in a row that miss the bottom of the range at the same weight before going lighter.
@@ -46,19 +58,29 @@ enum Progression {
         let range = reps.map { $0...$0 } ?? goal.repRange
         let done = sessions.filter { !$0.isEmpty }
         guard let last = done.first, let weight = last.map(\.weightKg).max() else {
-            return Target(change: .start, weightKg: nil, reps: range, sets: sets)
+            let pick = range.lowerBound + (range.upperBound - range.lowerBound + 1) / 2
+            return Target(change: .start, weightKg: nil, reps: range, sets: sets,
+                          reason: "Find your starting weight: pick one you can lift \(pick) times with good form.")
         }
         // Lighter sets are warm-ups; only sets at the session's top weight count.
         let working = last.filter { $0.weightKg == weight }
-        let target = { (change: Target.Change, kg: Double) in Target(change: change, weightKg: kg, reps: range, sets: sets) }
+        let target = { (change: Target.Change, kg: Double, reason: String) in
+            Target(change: change, weightKg: kg, reps: range, sets: sets, reason: reason)
+        }
+        let got = working.map { "\($0.reps)" }.joined(separator: ", ")
+        let at = unit.format(kg: weight)
 
-        guard let step = step(for: equipment, unit: unit) else { return target(.hold, weight) }
+        guard let step = step(for: equipment, unit: unit) else { return target(.hold, weight, "You got \(got). Aim for one more rep.") }
         // Work in the user's unit so targets land on numbers they can actually load.
         let current = unit.fromKg(weight)
         let onGrid = (current / step).rounded() * step
 
-        if working.count >= sets, working.allSatisfy({ $0.reps >= range.upperBound }) {
-            return target(.increase, unit.toKg(onGrid + step))
+        if working.count >= sets, let fewest = working.map(\.reps).min(), fewest >= range.upperBound {
+            let every = working.allSatisfy { $0.reps == fewest } ? "\(fewest)" : "\(fewest) or more"
+            let heavier = unit.toKg(onGrid + step)
+            // Off the grid (a weight converted from the other unit), the jump isn't one step, so name the weight instead.
+            let add = abs(onGrid - current) < 0.01 ? "Add \(unit.format(kg: unit.toKg(step)))." : "Go up to \(unit.format(kg: heavier))."
+            return target(.increase, heavier, "You got \(every) on every set. \(add)")
         }
         let recent = done.prefix(missesBeforeReduce)
         let missedEach = recent.count == missesBeforeReduce && recent.allSatisfy { session in
@@ -67,9 +89,22 @@ enum Progression {
         }
         if missedEach, current > 0 {
             let tenPercentLess = ((current * 0.9) / step + 1e-9).rounded(.down) * step
-            return target(.decrease, unit.toKg(max(0, min(onGrid - step, tenPercentLess))))
+            let lighter = unit.toKg(max(0, min(onGrid - step, tenPercentLess)))
+            return target(.decrease, lighter,
+                          "Under \(range.lowerBound) reps at \(at) the last \(missesBeforeReduce) times. Try \(unit.format(kg: lighter)).")
         }
-        return target(.hold, weight)
+        if working.count < sets {
+            return target(.hold, weight, "You did \(working.count) of \(sets) sets at \(at). Do all \(sets) to add weight.")
+        }
+        return target(.hold, weight, "You got \(got) at \(at). Get \(range.upperBound) on every set to add weight.")
+    }
+
+    /// A set heavier than any before it for this exercise; with no load (bodyweight), more reps than ever.
+    /// The very first set is not a best, since there is nothing to beat yet.
+    static func isNewBest(_ set: LoggedSet, previous: [LoggedSet]) -> Bool {
+        guard let heaviest = previous.map(\.weightKg).max() else { return false }
+        if heaviest > 0 || set.weightKg > 0 { return set.weightKg > heaviest + 0.001 }  // tolerance: kg stored from lb input
+        return set.reps > previous.map(\.reps).max() ?? 0
     }
 
     /// Smallest sensible load jump, or nil when load is not what progresses.
