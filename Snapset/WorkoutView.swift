@@ -107,6 +107,24 @@ struct SessionView: View {
     var body: some View {
         let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         List {
+            Section {
+                VStack(spacing: 4) {
+                    Label("Workout in progress", systemImage: "record.circle")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.red)
+                        .symbolEffect(.pulse)
+                    Text(timerInterval: session.startedAt...Date.distantFuture, countsDown: false)
+                        .font(.system(size: 56, weight: .bold, design: .rounded).monospacedDigit())
+                        .contentTransition(.numericText())
+                    // A workout left open overnight shows its date, so a stale one is easy to spot.
+                    let today = Calendar.current.isDateInToday(session.startedAt)
+                    Text("Started \(session.startedAt.formatted(date: today ? .omitted : .abbreviated, time: .shortened)) · \(session.sets.count) sets logged")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .accessibilityElement(children: .combine)
+            }
             ForEach(Array(session.plan.enumerated()), id: \.offset) { _, planned in
                 if let exercise = byID[planned.exerciseID] {
                     let sets = sets(of: exercise)

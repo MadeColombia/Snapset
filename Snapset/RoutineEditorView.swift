@@ -14,7 +14,7 @@ struct RoutineEditorView: View {
             Section("Name") {
                 TextField("Routine name", text: $routine.name)
             }
-            Section("Exercises") {
+            Section {
                 ForEach(items) { item in
                     let reps = item.targetReps.map { "\($0) reps" }
                         ?? "\(goal.repRange.lowerBound)–\(goal.repRange.upperBound) reps"
@@ -42,6 +42,10 @@ struct RoutineEditorView: View {
                 .onDelete(perform: remove)
 
                 Button("Add exercise", systemImage: "plus.circle.fill") { showingPicker = true }
+            } header: {
+                Text("Exercises")
+            } footer: {
+                Text("Goal range follows your goal in Settings (\(goal.label): \(goal.repRange.lowerBound)–\(goal.repRange.upperBound) reps). Set a number to use fixed reps for an exercise.")
             }
         }
         .navigationTitle(routine.name.isEmpty ? "Routine" : routine.name)
