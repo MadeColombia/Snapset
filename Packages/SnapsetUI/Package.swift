@@ -5,8 +5,5 @@ let package = Package(
     name: "SnapsetUI",
     platforms: [.iOS(.v18)],
     products: [.library(name: "SnapsetUI", targets: ["SnapsetUI"])],
-    targets: [
-        .target(name: "SnapsetUI"),
-        .testTarget(name: "SnapsetUITests", dependencies: ["SnapsetUI"]),
-    ]
+    targets: [.target(name: "SnapsetUI")]
 )

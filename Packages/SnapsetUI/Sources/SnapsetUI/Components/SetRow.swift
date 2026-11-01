@@ -23,7 +23,7 @@ public struct SetRow: View {
                 .foregroundStyle(isWarmUp ? Color.snap.statusDown : Color.snap.textSecondary)
                 .frame(minWidth: 28, minHeight: 28)
                 .background(Color.snap.surface, in: .rect(cornerRadius: Snap.Radius.chip))
-            Text("\(weight.formatted(.number.precision(.fractionLength(0...1)))) × \(reps)")
+            Text("\(weight.formatted(.number.precision(.fractionLength(0...1)))) \(unit) × \(reps)")
                 .font(.system(.body, design: .rounded).monospacedDigit())
                 .foregroundStyle(Color.snap.textPrimary)
             Spacer(minLength: 0)
