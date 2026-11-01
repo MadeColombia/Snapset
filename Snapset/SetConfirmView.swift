@@ -10,6 +10,8 @@ struct SetConfirmView: View {
     let exercise: Exercise
     var targetKg: Double? = nil  // from the progression engine; otherwise the last set pre-fills
     var targetReps: Int? = nil
+    var editing: SetEntry? = nil  // edit mode: pre-fills this set's values and offers Delete
+    var onDelete: (() -> Void)? = nil
     let onLog: (_ weightKg: Double, _ reps: Int) -> Void
 
     @State private var weight: Double = 0  // in the display unit
@@ -31,11 +33,23 @@ struct SetConfirmView: View {
 
                 Spacer(minLength: 0)
 
-                PrimaryButton("Save set") {
+                PrimaryButton(editing == nil ? "Save set" : "Save changes") {
                     guard !logged else { return }  // a double tap must log one set, not two
                     logged = true
                     onLog(unit.toKg(weight), reps)
                     dismiss()
+                }
+                if let onDelete {
+                    // No dialog: the session screen offers Undo.
+                    Button("Delete set", systemImage: "trash") {
+                        guard !logged else { return }
+                        logged = true
+                        onDelete()
+                        dismiss()
+                    }
+                    .font(.headline)
+                    .foregroundStyle(Color.snap.textPrimary)
+                    .frame(minHeight: Snap.Tap.min)
                 }
             }
             .padding(Snap.Spacing.l)
@@ -47,6 +61,12 @@ struct SetConfirmView: View {
             }
         }
         .task {
+            if let editing {
+                hasHistory = true
+                weight = (unit.fromKg(editing.weightKg) * 100).rounded() / 100
+                reps = editing.reps
+                return
+            }
             let last = SetEntry.latest(of: exercise.id, in: context)
             hasHistory = last != nil
             if let kg = targetKg ?? last?.weightKg {

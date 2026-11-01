@@ -81,6 +81,7 @@ struct ScreenSnapshotTests {
             ("workout-rest-paused", { workout(3, 1, true, true) }),
             ("workout-rest", { workout(3, 1, true, false) }),  // leaves the session mid-workout for the screens below
             ("set-confirm", { AnyView(SetConfirmView(exercise: press, targetKg: 50, targetReps: 8) { _, _ in }) }),
+            ("set-edit", { AnyView(SetConfirmView(exercise: press, editing: session.sets.first { $0.exercise === press }, onDelete: {}) { _, _ in }) }),
             ("running-bar", { AnyView(VStack { Spacer(); RunningWorkoutBar(session: session) {} }.background(Color.snap.background)) }),
             ("routines", { AnyView(RoutineListView()) }),
             ("routine-editor", { AnyView(NavigationStack { RoutineEditorView(routine: routine) }) }),

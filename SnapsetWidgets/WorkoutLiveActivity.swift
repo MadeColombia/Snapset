@@ -72,7 +72,8 @@ private struct Elapsed: View {
     }
 }
 
-/// Pause or resume, log the next set, finish. They run in the app, which then updates the activity.
+/// Pause or resume, log the next set, finish. They run in the app, which then updates the activity;
+/// Log set opens the app on the set confirm sheet rather than saving anything from here.
 private struct Controls: View {
     let state: WorkoutActivityAttributes.ContentState
 
@@ -84,11 +85,10 @@ private struct Controls: View {
             }
             .tint(Color.snap.textPrimary)
             // Log set is the one accent here, as in the app.
-            Button(intent: WorkoutButtonIntent(.logSet)) {
+            Button(intent: LogSetIntent()) {
                 Label("Log set", systemImage: "plus").frame(maxWidth: .infinity)
             }
             .tint(Color.snap.accent)
-            .disabled(!state.canLogSet)
             Button(intent: WorkoutButtonIntent(.finish)) {
                 Label("Finish", systemImage: "checkmark").frame(maxWidth: .infinity)
             }

@@ -49,4 +49,43 @@ struct WorkoutControlsTests {
         session.sets.append(SetEntry(exercise: row, weightKg: 55, reps: 9))
         #expect(WorkoutActivity.nextSet(of: session, in: context) == nil)  // every planned set done
     }
+
+    @Test func editingASetPersistsAndRechecksTheBest() throws {
+        let yesterday = Date.now.addingTimeInterval(-86_400)
+        let past = WorkoutSession(startedAt: yesterday)
+        past.sets.append(SetEntry(exercise: press, weightKg: 50, reps: 10, loggedAt: yesterday))
+        past.finishedAt = yesterday.addingTimeInterval(3_600)
+        let session = WorkoutSession()
+        let set = SetEntry(exercise: press, weightKg: 50, reps: 10)
+        session.sets.append(set)
+        [past, session].forEach(context.insert)
+        try context.save()
+        #expect(!session.isNewBest(set, in: context))  // ties last time's 50 kg
+
+        set.weightKg = 52.5
+        set.reps = 8
+        try context.save()
+        let stored = try ModelContext(container).fetch(FetchDescriptor<SetEntry>(sortBy: [SortDescriptor(\.loggedAt, order: .reverse)])).first
+        #expect(stored?.weightKg == 52.5 && stored?.reps == 8)
+        #expect(session.isNewBest(set, in: context))
+
+        set.weightKg = 45
+        try context.save()
+        #expect(!session.isNewBest(set, in: context))
+    }
+
+    @Test func onlySetsLoggedEarlierCountAgainstAnEditedSet() throws {
+        let session = WorkoutSession()
+        let first = SetEntry(exercise: press, weightKg: 40, reps: 10, loggedAt: .now.addingTimeInterval(-300))
+        let second = SetEntry(exercise: press, weightKg: 42.5, reps: 10, loggedAt: .now)
+        session.sets = [first, second]
+        context.insert(session)
+        try context.save()
+        #expect(session.isNewBest(second, in: context))   // beats the earlier set
+        #expect(!session.isNewBest(first, in: context))   // the first set ever has nothing to beat
+
+        second.weightKg = 40
+        try context.save()
+        #expect(!session.isNewBest(second, in: context))  // edited down to a tie, no longer a best
+    }
 }
