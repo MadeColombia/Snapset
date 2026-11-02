@@ -1,27 +1,42 @@
 import SwiftUI
 
 public struct PrimaryButton: View {
-    public enum Style: Sendable { case accent, neutral }
+    /// `.accent` is the screen's main action, `.neutral` when something else already has the accent.
+    /// `.finish`, `.resume` and `.pause` are the workout controls' action colours; give them a symbol too.
+    public enum Style: Sendable { case accent, neutral, finish, resume, pause }
 
     let title: String
+    let systemImage: String?
     let style: Style
     let action: () -> Void
 
-    /// `.accent` is the screen's one accent element. Use `.neutral` when something else already has it.
-    public init(_ title: String, style: Style = .accent, action: @escaping () -> Void) {
+    public init(_ title: String, systemImage: String? = nil, style: Style = .accent, action: @escaping () -> Void) {
         self.title = title
+        self.systemImage = systemImage
         self.style = style
         self.action = action
     }
 
+    private var fill: Color {
+        switch style {
+        case .accent: Color.snap.accent
+        case .neutral: Color.snap.textPrimary
+        case .finish: Color.snap.actionFinish
+        case .resume: Color.snap.actionResume
+        case .pause: Color.snap.actionPause
+        }
+    }
+
     public var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.headline)
-                .frame(maxWidth: .infinity, minHeight: Snap.Tap.logging)
-                .foregroundStyle(style == .accent ? Color.snap.onAccent : Color.snap.background)
-                .background(style == .accent ? Color.snap.accent : Color.snap.textPrimary,
-                            in: .rect(cornerRadius: Snap.Radius.control))
+            Group {
+                if let systemImage { Label(title, systemImage: systemImage) } else { Text(title) }
+            }
+            .font(.headline)
+            .padding(.horizontal, Snap.Spacing.l)
+            .frame(maxWidth: .infinity, minHeight: Snap.Tap.logging)
+            .foregroundStyle(style == .neutral ? Color.snap.background : Color.snap.onAccent)
+            .background(fill, in: .rect(cornerRadius: Snap.Radius.control))
         }
         .buttonStyle(.plain)
     }
@@ -70,6 +85,11 @@ private struct ButtonsPreview: View {
         PreviewSurface {
             PrimaryButton("Save set") {}
             PrimaryButton("Finish workout", style: .neutral) {}
+            HStack {
+                PrimaryButton("Pause", systemImage: "pause.fill", style: .pause) {}
+                PrimaryButton("Finish", systemImage: "checkmark", style: .finish) {}
+            }
+            PrimaryButton("Resume", systemImage: "play.fill", style: .resume) {}
             SecondaryButton("Add note") {}
             SecondaryButton("Take photo", systemImage: "camera", iconOnly: true) {}
         }

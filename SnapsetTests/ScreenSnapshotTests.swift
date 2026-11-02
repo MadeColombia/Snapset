@@ -65,7 +65,8 @@ struct ScreenSnapshotTests {
 
     @Test(.enabled(if: ProcessInfo.processInfo.environment["SNAPSHOTS"] != nil))
     func renderScreens() throws {
-        let workout = { (legSets: Int, pressSets: Int, resting: Bool) -> AnyView in
+        let workout = { (legSets: Int, pressSets: Int, resting: Bool, paused: Bool) -> AnyView in
+            session.pausedAt = paused ? .now : nil
             session.sets.forEach(context.delete)
             session.sets = (0..<legSets).map { SetEntry(exercise: legs, weightKg: 100, reps: 12, loggedAt: .now.addingTimeInterval(Double($0 - 4) * 150)) }
                 + (0..<pressSets).map { _ in SetEntry(exercise: press, weightKg: 47.5, reps: 12) }
@@ -75,10 +76,12 @@ struct ScreenSnapshotTests {
         let screens: [(String, () -> AnyView)] = [
             ("start-workout", { AnyView(NavigationStack { StartWorkoutView() }) }),
             ("countdown", { AnyView(CountdownView(onFinish: {}, onCancel: {})) }),
-            ("workout-first-set", { workout(0, 0, false) }),
-            ("workout-exercise-done", { workout(3, 0, false) }),
-            ("workout-rest", { workout(3, 1, true) }),  // leaves the session mid-workout for the screens below
+            ("workout-first-set", { workout(0, 0, false, false) }),
+            ("workout-exercise-done", { workout(3, 0, false, false) }),
+            ("workout-rest-paused", { workout(3, 1, true, true) }),
+            ("workout-rest", { workout(3, 1, true, false) }),  // leaves the session mid-workout for the screens below
             ("set-confirm", { AnyView(SetConfirmView(exercise: press, targetKg: 50, targetReps: 8) { _, _ in }) }),
+            ("set-edit", { AnyView(SetConfirmView(exercise: press, editing: session.sets.first { $0.exercise === press }, onDelete: {}) { _, _ in }) }),
             ("running-bar", { AnyView(VStack { Spacer(); RunningWorkoutBar(session: session) {} }.background(Color.snap.background)) }),
             ("routines", { AnyView(RoutineListView()) }),
             ("routine-editor", { AnyView(NavigationStack { RoutineEditorView(routine: routine) }) }),

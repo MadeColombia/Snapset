@@ -118,6 +118,17 @@ enum Progression {
     }
 }
 
+extension WorkoutSession {
+    /// Whether `set` is a new best against every set of its exercise logged before it, here and in past sessions.
+    func isNewBest(_ set: SetEntry, in context: ModelContext) -> Bool {
+        guard let id = set.exercise?.id else { return false }
+        let earlier = sets.filter { $0.exercise?.id == id && $0 != set && $0.loggedAt <= set.loggedAt }
+        let previous = Progression.history(of: id, excluding: self, in: context).flatMap { $0 }
+            + earlier.map { Progression.LoggedSet(weightKg: $0.weightKg, reps: $0.reps) }
+        return Progression.isNewBest(.init(weightKg: set.weightKg, reps: set.reps), previous: previous)
+    }
+}
+
 extension Progression {
     /// One exercise's sets grouped by session, newest session first, leaving out `current`.
     static func history(of exerciseID: String, excluding current: WorkoutSession?, in context: ModelContext) -> [[LoggedSet]] {

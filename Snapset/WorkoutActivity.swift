@@ -35,9 +35,6 @@ enum WorkoutActivity {
         case .finish:
             session.finish(in: context)
             return
-        case .logSet:
-            guard let next = nextSet(of: session, in: context) else { break }
-            session.sets.append(SetEntry(exercise: next.exercise, weightKg: next.weightKg, reps: next.reps))
         }
         try? context.save()
         sync(session, in: context)
@@ -49,7 +46,7 @@ enum WorkoutActivity {
         let reps: Int
     }
 
-    /// What Log set records: the first planned exercise still short of its sets, filled in the way the log screen
+    /// The next set shown in the Dynamic Island: the first planned exercise still short of its sets, filled in the way the log screen
     /// would be (the target for the first set, then a repeat of the last one). Nil while there is no weight to go on.
     static func nextSet(of session: WorkoutSession, in context: ModelContext) -> NextSet? {
         guard let planned = pending(in: session), let exercise = exercise(planned.exerciseID, in: context) else { return nil }
@@ -90,7 +87,7 @@ enum WorkoutActivity {
         } else {
             detail = "All planned sets logged"
         }
-        return .init(pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds, detail: detail, canLogSet: next != nil)
+        return .init(pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds, detail: detail)
     }
 }
 

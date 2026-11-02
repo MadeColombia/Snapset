@@ -163,24 +163,41 @@ struct SessionView: View {
     @Bindable var session: WorkoutSession
     let onFinish: (_ goingUp: [String], _ best: String?) -> Void
     @Query private var exercises: [Exercise]
-    @State private var logging: Exercise?
+    @State private var sheet: Sheet?
+    @AppStorage("openLogSet") private var openLogSet = false  // set by Log set in the Dynamic Island
     @State private var confirmingFinish = false
     @State private var targets: [String: Progression.Target] = [:]
     @State private var chosen: Int?  // a step the lifter tapped; nil follows the plan
     @State private var restEnds: Date?
+    @State private var restTotal: TimeInterval = 0
     @State private var toast: Toast?
 
     init(session: WorkoutSession, restingUntil: Date? = nil, onFinish: @escaping (_ goingUp: [String], _ best: String?) -> Void) {
         self.session = session
         self.onFinish = onFinish
         _restEnds = State(initialValue: restingUntil)
+        // The goal's full rest, so a rest already under way shows how much of it is left.
+        let goal = Goal(rawValue: UserDefaults.standard.string(forKey: "goal") ?? "") ?? .muscle
+        _restTotal = State(initialValue: max(Double(goal.restSeconds), restingUntil?.timeIntervalSinceNow.rounded(.up) ?? 0))
+    }
+
+    enum Sheet: Identifiable {
+        case log(Exercise)
+        case edit(SetEntry)
+
+        var id: PersistentIdentifier {
+            switch self {
+            case .log(let exercise): exercise.persistentModelID
+            case .edit(let set): set.persistentModelID
+            }
+        }
     }
 
     struct Toast: Equatable {
         let id = UUID()
-        let set: SetEntry
         let message: String
         let isBest: Bool
+        let undo: () -> Void
 
         static func == (a: Toast, b: Toast) -> Bool { a.id == b.id }
     }
@@ -188,7 +205,6 @@ struct SessionView: View {
     var body: some View {
         let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let current = chosen ?? upNext
-        let starts = startTimes
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: Snap.Spacing.xl) {
@@ -196,7 +212,7 @@ struct SessionView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(session.plan.enumerated()), id: \.offset) { index, planned in
                             if let exercise = byID[planned.exerciseID] {
-                                step(index: index, planned: planned, exercise: exercise, start: starts[index], current: current)
+                                step(index: index, planned: planned, exercise: exercise, current: current)
                                     .id(index)
                             }
                         }
@@ -215,7 +231,10 @@ struct SessionView: View {
         .snapAnimation(value: restEnds)
         .overlay(alignment: .bottom) {
             if let toast {
-                UndoToast(toast.message, isBest: toast.isBest) { undo(toast.set) }
+                UndoToast(toast.message, isBest: toast.isBest) {
+                    self.toast = nil
+                    toast.undo()
+                }
                     .padding(Snap.Spacing.l)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -230,7 +249,11 @@ struct SessionView: View {
         .task(id: restEnds) {
             guard let restEnds else { return }
             try? await Task.sleep(for: .seconds(max(0, restEnds.timeIntervalSinceNow)))
-            if !Task.isCancelled { self.restEnds = nil }
+            // A pause holds the rest; resuming moves its end and restarts this task.
+            if !Task.isCancelled, session.pausedAt == nil { self.restEnds = nil }
+        }
+        .onChange(of: session.pausedAt) { old, new in
+            if let old, new == nil, let restEnds { self.restEnds = restEnds.addingTimeInterval(Date.now.timeIntervalSince(old)) }
         }
         .navigationTitle(session.routineName ?? "Workout")
         // An alert, not a confirmationDialog: on iOS 26+ the dialog pops over the button instead of centering.
@@ -241,14 +264,29 @@ struct SessionView: View {
             Text(session.sets.isEmpty ? "No sets were logged, so nothing will be saved."
                                       : "\(session.sets.count) sets will be saved to your history.")
         }
-        .sheet(item: $logging) { exercise in
-            // The target pre-fills the first set; later sets repeat what was just lifted.
-            let target = sets(of: exercise).isEmpty ? targets[exercise.id] : nil
-            SetConfirmView(exercise: exercise,
-                           targetKg: target?.weightKg,
-                           targetReps: target?.change == .hold ? nil : target?.reps.lowerBound) { weightKg, reps in
-                log(exercise, weightKg: weightKg, reps: reps)
+        .sheet(item: $sheet) { sheet in
+            switch sheet {
+            case .log(let exercise):
+                // The target pre-fills the first set; later sets repeat what was just lifted.
+                let target = sets(of: exercise).isEmpty ? targets[exercise.id] : nil
+                SetConfirmView(exercise: exercise,
+                               targetKg: target?.weightKg,
+                               targetReps: target?.change == .hold ? nil : target?.reps.lowerBound) { weightKg, reps in
+                    log(exercise, weightKg: weightKg, reps: reps)
+                }
+            case .edit(let set):
+                if let exercise = set.exercise {
+                    SetConfirmView(exercise: exercise, editing: set, onDelete: { delete(set) }) { weightKg, reps in
+                        change(set, weightKg: weightKg, reps: reps)
+                    }
+                }
             }
+        }
+        .onChange(of: openLogSet, initial: true) { _, open in
+            guard open else { return }
+            openLogSet = false
+            let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            if let index = chosen ?? upNext, let exercise = byID[session.plan[index].exerciseID] { sheet = .log(exercise) }
         }
         // Keeps the Dynamic Island's next set and pause state in step with this screen.
         .task(id: "\(session.sets.count)-\(String(describing: session.pausedAt))-\(goal.rawValue)-\(unit.rawValue)") {
@@ -262,16 +300,14 @@ struct SessionView: View {
     private var header: some View {
         VStack(spacing: Snap.Spacing.m) {
             VStack(spacing: Snap.Spacing.xs) {
-                if session.pausedAt != nil {
-                    Label("Paused", systemImage: "pause.circle")
-                        .snapText(.label)
-                        .foregroundStyle(Color.snap.statusHold)
-                }
-                // Smaller than the target weight below: the weight is the biggest number on this screen.
+                // The workout clock is the screen's main number. Paused, it turns the resume colour; the Resume button says the word.
                 ElapsedTime(startedAt: session.startedAt, pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds)
-                    .snapText(.numberMedium)
-                    .foregroundStyle(session.pausedAt == nil ? Color.snap.textPrimary : Color.snap.textSecondary)
+                    .snapText(.heroNumber)
+                    .foregroundStyle(session.pausedAt == nil ? Color.snap.textPrimary : Color.snap.actionResume)
                     .contentTransition(.numericText())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .accessibilityLabel(session.pausedAt == nil ? "Workout time" : "Workout paused")
                 // A workout left open overnight shows its date, so a stale one is easy to spot.
                 let today = Calendar.current.isDateInToday(session.startedAt)
                 Text("Started \(session.startedAt.formatted(date: today ? .omitted : .abbreviated, time: .shortened)) · \(session.sets.count) sets logged")
@@ -279,7 +315,7 @@ struct SessionView: View {
             }
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .combine)
-            WorkoutControls(paused: session.pausedAt != nil, allDone: upNext == nil) {
+            WorkoutControls(paused: session.pausedAt != nil) {
                 session.togglePause()
                 try? context.save()
             } finish: {
@@ -289,7 +325,7 @@ struct SessionView: View {
     }
 
     @ViewBuilder
-    private func step(index: Int, planned: PlannedExercise, exercise: Exercise, start: String, current: Int?) -> some View {
+    private func step(index: Int, planned: PlannedExercise, exercise: Exercise, current: Int?) -> some View {
         let logged = sets(of: exercise)
         let done = logged.count >= planned.targetSets
         let target = targets[exercise.id]
@@ -298,17 +334,20 @@ struct SessionView: View {
         let detail = switch state {
         case .done: "Done. \(logged.count) sets of \(exercise.name.lowercased())."
         case _ where !logged.isEmpty: "\(logged.count) of \(planned.targetSets) sets · \(reps)"
-        default: "\(planned.targetSets) × \(reps) · rest \(goal.restSeconds) s"
+        default: "\(planned.targetSets) sets · about \(minutes(for: planned)) min"
         }
-        RoadmapStep(start: start, title: exercise.name, detail: detail, state: state,
+        RoadmapStep(title: exercise.name, detail: detail, state: state,
                     isLast: index == session.plan.count - 1, onSelect: { chosen = index }) {
             if let restEnds {
                 // Between sets the step goes quiet: the countdown and what comes next.
                 TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                    RestTimer(remaining: restEnds.timeIntervalSince(timeline.date), next: nextLine) {
+                    let pausedAt = session.pausedAt
+                    RestTimer(remaining: restEnds.timeIntervalSince(pausedAt ?? timeline.date), total: restTotal,
+                              paused: pausedAt != nil, next: nextLine) {
                         self.restEnds = nil
                     } onAddThirty: {
                         self.restEnds = restEnds.addingTimeInterval(30)
+                        restTotal = max(restTotal, restEnds.addingTimeInterval(30).timeIntervalSince(pausedAt ?? .now))
                     }
                 }
                 setRows(logged)
@@ -319,11 +358,11 @@ struct SessionView: View {
                 }
                 if let target { TargetBlock(target: target, unit: unit) }
                 setRows(logged)
-                // Only the step with sets still to do gets the orange button, so each screen has one accent.
+                // Only the step with sets still to do gets the orange button; while paused, Resume has it.
                 if done {
-                    SecondaryButton("Log another set", systemImage: "plus") { logging = exercise }
+                    SecondaryButton("Log another set", systemImage: "plus") { sheet = .log(exercise) }
                 } else {
-                    PrimaryButton("Log set") { logging = exercise }
+                    PrimaryButton("Log set", style: session.pausedAt == nil ? .accent : .neutral) { sheet = .log(exercise) }
                 }
             }
         }
@@ -331,10 +370,16 @@ struct SessionView: View {
 
     private func setRows(_ logged: [SetEntry]) -> some View {
         ForEach(Array(logged.enumerated()), id: \.element.id) { index, set in
-            SetRow(number: index + 1, weight: unit.fromKg(set.weightKg), reps: set.reps, unit: unit.rawValue)
-                .contextMenu {
-                    Button("Delete set", systemImage: "trash") { remove(set) }
-                }
+            Button { sheet = .edit(set) } label: {
+                SetRow(number: index + 1, weight: unit.fromKg(set.weightKg), reps: set.reps, unit: unit.rawValue)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Edit this set")
+            .contextMenu {
+                Button("Edit set", systemImage: "pencil") { sheet = .edit(set) }
+                Button("Delete set", systemImage: "trash") { delete(set) }
+            }
         }
     }
 
@@ -342,13 +387,9 @@ struct SessionView: View {
         reps.count == 1 ? "\(reps.lowerBound) reps" : "\(reps.lowerBound) to \(reps.upperBound) reps"
     }
 
-    /// Planned start of each step from 0:00, as "h:mm": every set plus the rest after it.
-    private var startTimes: [String] {
-        var seconds = 0
-        return session.plan.map { planned in
-            defer { seconds += planned.targetSets * (Self.secondsPerSet + goal.restSeconds) }
-            return String(format: "%d:%02d", seconds / 3600, seconds / 60 % 60)
-        }
+    /// About how long a step takes: every set plus the rest after it.
+    private func minutes(for planned: PlannedExercise) -> Int {
+        max(1, Int((Double(planned.targetSets * (Self.secondsPerSet + goal.restSeconds)) / 60).rounded()))
     }
 
     /// shortcut: a fixed guess at how long one set takes; upgrade once timed sets are measured.
@@ -394,29 +435,46 @@ struct SessionView: View {
         session.sets.filter { $0.exercise?.id == exercise.id }.sorted { $0.loggedAt < $1.loggedAt }
     }
 
-    /// Every set of `exercise` before now: past sessions and this one.
-    private func previousSets(of exercise: Exercise) -> [Progression.LoggedSet] {
-        (Progression.history(of: exercise.id, excluding: session, in: context).flatMap { $0 } + sets(of: exercise).map {
-            Progression.LoggedSet(weightKg: $0.weightKg, reps: $0.reps)
-        })
-    }
-
     private func log(_ exercise: Exercise, weightKg: Double, reps: Int) {
-        let isBest = Progression.isNewBest(.init(weightKg: weightKg, reps: reps), previous: previousSets(of: exercise))
         let entry = SetEntry(exercise: exercise, weightKg: weightKg, reps: reps)
         session.sets.append(entry)
         try? context.save()  // save each set at once so a killed app loses nothing
-        toast = Toast(set: entry, message: isBest ? "New best: \(load(kg: weightKg, reps: reps)) on \(exercise.name.lowercased())!" : "Set saved",
-                      isBest: isBest)
+        let isBest = session.isNewBest(entry, in: context)
+        toast = Toast(message: isBest ? "New best: \(load(kg: weightKg, reps: reps)) on \(exercise.name.lowercased())!" : "Set saved",
+                      isBest: isBest) {
+            restEnds = nil
+            remove(entry)
+        }
         // A finished step hands over to the next one with sets to do.
         if let index = chosen, sets(of: exercise).count >= session.plan[index].targetSets { chosen = nil }
-        restEnds = upNext == nil ? nil : .now.addingTimeInterval(Double(goal.restSeconds))
+        restTotal = Double(goal.restSeconds)
+        restEnds = upNext == nil ? nil : .now.addingTimeInterval(restTotal)
     }
 
-    private func undo(_ set: SetEntry) {
-        toast = nil
-        restEnds = nil
+    private func change(_ set: SetEntry, weightKg: Double, reps: Int) {
+        let old = (set.weightKg, set.reps)
+        set.weightKg = weightKg
+        set.reps = reps
+        try? context.save()
+        // Checked again, so a corrected typo can make (or stop being) a best.
+        let isBest = set.exercise.map { exercise in
+            session.isNewBest(set, in: context) ? "New best: \(load(kg: weightKg, reps: reps)) on \(exercise.name.lowercased())!" : nil
+        } ?? nil
+        toast = Toast(message: isBest ?? "Set updated", isBest: isBest != nil) {
+            set.weightKg = old.0
+            set.reps = old.1
+            try? context.save()
+        }
+    }
+
+    private func delete(_ set: SetEntry) {
+        guard let exercise = set.exercise else { return remove(set) }
+        let copy = (set.weightKg, set.reps, set.loggedAt)
         remove(set)
+        toast = Toast(message: "Set deleted", isBest: false) {
+            session.sets.append(SetEntry(exercise: exercise, weightKg: copy.0, reps: copy.1, loggedAt: copy.2))
+            try? context.save()
+        }
     }
 
     private func remove(_ set: SetEntry) {
@@ -446,29 +504,24 @@ struct SessionView: View {
     }
 }
 
-/// Pause and Finish under the timer; sets are logged from the current step below.
+/// Pause or Resume, and Finish, under the timer, each in its action colour; sets are logged from the current step below.
 private struct WorkoutControls: View {
     let paused: Bool
-    let allDone: Bool  // Finish takes the accent once every planned set is logged
     let togglePause: () -> Void
     let finish: () -> Void
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        // Snapset buttons use a plain style, which keeps each one tappable on its own inside a List row.
         // Stacked at accessibility text sizes, where two side by side would cut off their words.
         let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: Snap.Spacing.s))
                                                   : AnyLayout(HStackLayout(spacing: Snap.Spacing.s))
-        layout { buttons }
-            .padding(.bottom, Snap.Spacing.s)
-    }
-
-    @ViewBuilder private var buttons: some View {
-        SecondaryButton(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill", action: togglePause)
-        if allDone {
-            PrimaryButton("Finish", action: finish)
-        } else {
-            SecondaryButton("Finish", systemImage: "checkmark", action: finish)
+        layout {
+            if paused {
+                PrimaryButton("Resume", systemImage: "play.fill", style: .resume, action: togglePause)
+            } else {
+                PrimaryButton("Pause", systemImage: "pause.fill", style: .pause, action: togglePause)
+            }
+            PrimaryButton("Finish", systemImage: "checkmark", style: .finish, action: finish)
         }
     }
 }
