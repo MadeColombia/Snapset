@@ -1,12 +1,10 @@
 import SwiftUI
 
-/// The workout clock: counts on its own while running, stands still during a rest or a pause,
-/// and picks up again by itself when a rest runs out.
+/// The workout clock: counts on its own while running (rests included), stands still while paused.
 struct ElapsedTime: View {
     let times: WorkoutTimes
 
     var body: some View {
-        // Re-read every second while standing still, so a rest that runs out restarts the clock without an update.
         TimelineView(.periodic(from: times.tickStart, by: 1)) { timeline in
             if let since = times.runningSince(at: timeline.date) {
                 Text(timerInterval: since...Date.distantFuture, countsDown: false)

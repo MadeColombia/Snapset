@@ -244,8 +244,7 @@ struct SessionView: View {
         .task(id: session.restEndsAt) {
             guard let restEnds = session.restEndsAt else { return }
             try? await Task.sleep(for: .seconds(max(0, restEnds.timeIntervalSinceNow)))
-            // The rest ran out: fold it into the stopped time so the workout clock runs again.
-            // A pause holds the rest; resuming moves its end (WorkoutTimes.togglePause) and restarts this task.
+            // The rest ran out. A pause holds the rest; resuming moves its end (WorkoutTimes.togglePause) and restarts this task.
             if !Task.isCancelled, session.pausedAt == nil {
                 session.settleRest()
                 try? context.save()
@@ -308,11 +307,10 @@ struct SessionView: View {
         VStack(spacing: Snap.Spacing.m) {
             VStack(spacing: Snap.Spacing.xs) {
                 // The workout clock is the screen's main number. Paused, it turns the resume colour; the Resume button says the word.
-                // It stands still during a rest (shown grey, the rest timer below is green) and during a pause (orange).
+                // It keeps running through rests (total activity time); only Pause stops it, and turns it orange.
                 ElapsedTime(times: session.times)
                     .snapText(.heroNumber)
-                    .foregroundStyle(session.pausedAt != nil ? Color.snap.actionResume
-                                     : session.restEndsAt != nil ? Color.snap.textSecondary : Color.snap.textPrimary)
+                    .foregroundStyle(session.pausedAt == nil ? Color.snap.textPrimary : Color.snap.actionResume)
                     .contentTransition(.numericText())
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)

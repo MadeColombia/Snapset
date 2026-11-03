@@ -79,46 +79,39 @@ struct WorkoutControlsTests {
         #expect(session.restSeconds == 91)  // 90.6, shown as a whole second
     }
 
-    // MARK: Two clocks: the workout clock stands still while resting, and picks up when the rest runs out.
+    // MARK: Two clocks: the workout clock runs through rests, the rest counts down beside it, Pause stops both.
 
-    @Test func theWorkoutClockStandsStillDuringARestAndRunsAgainAfter() {
+    @Test func theWorkoutClockKeepsRunningThroughARest() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         var times = WorkoutTimes(startedAt: start)
         times.startRest(90, at: start.addingTimeInterval(60))
         #expect(times.phase(at: start.addingTimeInterval(61)) == .resting)
-        #expect(times.elapsed(at: start.addingTimeInterval(61)) == 60)
-        #expect(times.elapsed(at: start.addingTimeInterval(149)) == 60)
-        // No update needed at the rest's end: the clock picks up from 60 on its own.
+        #expect(times.elapsed(at: start.addingTimeInterval(100)) == 100)
+        #expect(times.restRemaining(at: start.addingTimeInterval(100)) == 50)
         #expect(times.phase(at: start.addingTimeInterval(150)) == .training)
-        #expect(times.elapsed(at: start.addingTimeInterval(160)) == 70)
-        #expect(times.runningSince(at: start.addingTimeInterval(160)) == start.addingTimeInterval(90))
-        // Settling later changes nothing on screen.
-        times.settle(at: start.addingTimeInterval(500))
-        #expect(times.elapsed(at: start.addingTimeInterval(160)) == 70)
-        #expect(times.stoppedSeconds == 90)
+        #expect(times.elapsed(at: start.addingTimeInterval(160)) == 160)
     }
 
     @Test func pausingDuringARestFreezesBothClocks() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         var times = WorkoutTimes(startedAt: start)
         times.startRest(90, at: start.addingTimeInterval(60))
-        times.togglePause(at: start.addingTimeInterval(80))  // 70 s of rest left
-        #expect(times.elapsed(at: start.addingTimeInterval(500)) == 60)
+        times.togglePause(at: start.addingTimeInterval(80))  // 70 s of rest left, 80 s of workout
+        #expect(times.elapsed(at: start.addingTimeInterval(500)) == 80)
         #expect(times.restRemaining(at: start.addingTimeInterval(500)) == 70)
-        times.togglePause(at: start.addingTimeInterval(200))  // resting again, 70 s left
+        times.togglePause(at: start.addingTimeInterval(200))
         #expect(times.phase(at: start.addingTimeInterval(200)) == .resting)
-        #expect(times.elapsed(at: start.addingTimeInterval(269)) == 60)
-        // Rest over at 270: the clock carries on from 60.
-        #expect(times.elapsed(at: start.addingTimeInterval(280)) == 70)
+        #expect(times.elapsed(at: start.addingTimeInterval(210)) == 90)
+        #expect(times.restRemaining(at: start.addingTimeInterval(210)) == 60)
     }
 
-    @Test func skippingTheRestStartsTheClockAtOnce() {
+    @Test func skippingTheRestLeavesTheClockAlone() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         var times = WorkoutTimes(startedAt: start)
         times.startRest(90, at: start.addingTimeInterval(60))
         times.endRest(at: start.addingTimeInterval(75))
         #expect(times.phase(at: start.addingTimeInterval(75)) == .training)
-        #expect(times.elapsed(at: start.addingTimeInterval(85)) == 70)
+        #expect(times.elapsed(at: start.addingTimeInterval(85)) == 85)
     }
 
     @Test func aPauseInTrainingFreezesTheClockAndResumeCarriesOn() {
@@ -130,15 +123,17 @@ struct WorkoutControlsTests {
         #expect(times.elapsed(at: start.addingTimeInterval(310)) == 40)
     }
 
-    /// Both numbers change on the same instant: the rest's whole seconds line up with the workout clock's.
+    /// Both numbers change on the same instant: the rest ends on a whole second of the workout clock.
     @Test func theRestAndTheClockTickTogether() throws {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         var times = WorkoutTimes(startedAt: start)
-        times.startRest(90, at: start.addingTimeInterval(41.7))
+        times.togglePause(at: start.addingTimeInterval(10.3))
+        times.togglePause(at: start.addingTimeInterval(20))  // a 9.7 s pause shifts the clock's second
+        times.startRest(90, at: start.addingTimeInterval(41.9))
         let end = try #require(times.restEndsAt)
-        let resumed = try #require(times.runningSince(at: end))
-        #expect(end.timeIntervalSince(resumed).truncatingRemainder(dividingBy: 1) == 0)
-        #expect(times.elapsed(at: end) == 41)  // the second it showed when the rest began
+        let clockStart = try #require(times.runningSince(at: end))
+        let offset = end.timeIntervalSince(clockStart)
+        #expect(abs(offset - offset.rounded()) < 0.001)
     }
 
     @Test func aSessionPausedBeforeHoldSinceExistedStillResumes() {

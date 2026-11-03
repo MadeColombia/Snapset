@@ -68,7 +68,7 @@ struct ScreenSnapshotTests {
         let workout = { (legSets: Int, pressSets: Int, resting: Bool, paused: Bool) -> AnyView in
             session.pausedAt = paused ? .now : nil
             session.restEndsAt = resting ? .now.addingTimeInterval(75) : nil
-            session.holdSince = resting || paused ? .now.addingTimeInterval(-15) : nil
+            session.holdSince = paused ? .now : nil
             session.restSeconds = 90
             session.sets.forEach(context.delete)
             session.sets = (0..<legSets).map { SetEntry(exercise: legs, weightKg: 100, reps: 12, loggedAt: .now.addingTimeInterval(Double($0 - 4) * 150)) }
@@ -116,9 +116,9 @@ struct ScreenSnapshotTests {
         let start = Date.now.addingTimeInterval(-1_520)
         let states: [WorkoutActivityAttributes.ContentState] = [
             .init(times: WorkoutTimes(startedAt: start), exercise: "Chest Press", setLine: line, detail: ""),
-            .init(times: WorkoutTimes(startedAt: start, holdSince: .now.addingTimeInterval(-18), restEndsAt: .now.addingTimeInterval(72), restSeconds: 90),
+            .init(times: WorkoutTimes(startedAt: start, restEndsAt: .now.addingTimeInterval(72), restSeconds: 90),
                   exercise: "Chest Press", setLine: line, detail: ""),
-            .init(times: WorkoutTimes(startedAt: start, holdSince: .now.addingTimeInterval(-49), pausedAt: .now,
+            .init(times: WorkoutTimes(startedAt: start, holdSince: .now, pausedAt: .now,
                                       restEndsAt: .now.addingTimeInterval(41), restSeconds: 90),
                   exercise: "Chest Press", setLine: line, detail: ""),
             .init(times: WorkoutTimes(startedAt: start, holdSince: .now, pausedAt: .now), exercise: "Chest Press", setLine: line, detail: ""),

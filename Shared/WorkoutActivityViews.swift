@@ -99,7 +99,7 @@ struct WorkoutBadge<Logo: View>: View {
 }
 
 /// The Lock Screen (and notification banner) Live Activity: phase and routine, a big clock in the phase colour,
-/// and the next set underneath. While resting, the workout time stands still and is shown small.
+/// and the next set underneath. While resting, the big clock is the rest and the workout time runs on, small, top right.
 struct WorkoutLockScreenView<Logo: View>: View {
     let routineName: String
     let state: WorkoutActivityAttributes.ContentState
@@ -120,6 +120,16 @@ struct WorkoutLockScreenView<Logo: View>: View {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Color.snap.textSecondary)
                         .lineLimit(1)
+                    if phase != .training {
+                        // The big clock shows the rest; the total keeps its place up here, so the activity time stays clear.
+                        Spacer(minLength: 4)
+                        ElapsedTime(times: state.times)
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.snap.textSecondary)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 64, alignment: .trailing)
+                    }
                 }
                 WorkoutClock(state: state, isStale: isStale)
                     .font(.system(size: 46, weight: .semibold, design: .rounded))

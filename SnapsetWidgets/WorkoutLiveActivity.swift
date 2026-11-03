@@ -136,10 +136,10 @@ private extension WorkoutActivityAttributes.ContentState {
     static let start = Date.now.addingTimeInterval(-1_520)
     static let training = Self(times: WorkoutTimes(startedAt: start), exercise: "Chest Press",
                                setLine: "Set 2/4 · 47.5 kg × 12", detail: "")
-    static let resting = Self(times: WorkoutTimes(startedAt: start, holdSince: .now.addingTimeInterval(-18),
+    static let resting = Self(times: WorkoutTimes(startedAt: start,
                                                   restEndsAt: .now.addingTimeInterval(72), restSeconds: 90),
                               exercise: "Chest Press", setLine: "Set 2/4 · 47.5 kg × 12", detail: "")
-    static let paused = Self(times: WorkoutTimes(startedAt: start, holdSince: .now.addingTimeInterval(-49), pausedAt: .now,
+    static let paused = Self(times: WorkoutTimes(startedAt: start, holdSince: .now, pausedAt: .now,
                                                  restEndsAt: .now.addingTimeInterval(41), restSeconds: 90),
                              exercise: "Chest Press", setLine: "Set 2/4 · 47.5 kg × 12", detail: "")
 }

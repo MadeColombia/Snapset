@@ -2,15 +2,14 @@ import Foundation
 
 /// The workout's two clocks, as plain values shared by the app, the widget and the tests.
 ///
-/// The workout clock counts training time only: it stands still during a rest and during a pause.
-/// The rest clock counts down on its own. When a rest runs out, the workout clock picks up again by itself,
-/// so nothing has to update it at that moment (the Live Activity may be asleep).
-/// A rest starts on a whole second of the workout clock, so the two clocks always change digits together.
+/// The workout clock keeps running through rests, so the total activity time stays clear; only Pause stops it.
+/// The rest clock counts down on its own, next to it. Pause freezes both; Resume carries both on.
+/// A rest ends on a whole second of the workout clock, so the two clocks always change digits together.
 struct WorkoutTimes: Codable, Hashable {
     var startedAt: Date
-    /// Closed stops (pauses and rests), left out of the workout time.
+    /// Closed pauses, left out of the workout time.
     var stoppedSeconds: Double = 0
-    /// The workout clock has stood still since then, for a rest or a pause. Nil while it runs.
+    /// The workout clock has stood still since then (a pause). Nil while it runs.
     var holdSince: Date?
     var pausedAt: Date?
     var restEndsAt: Date?
@@ -31,20 +30,18 @@ struct WorkoutTimes: Codable, Hashable {
         return left > 0 ? left : nil
     }
 
-    /// A rest that ran out while not paused: the clock started again at `restEndsAt`.
+    /// A rest that ran out while not paused.
     private func restOver(at now: Date) -> Bool {
         guard pausedAt == nil, let restEndsAt else { return false }
         return restEndsAt <= now
     }
 
-    /// When a running workout clock read 0:00 (for a self-updating timer text); nil while it stands still at `now`.
+    /// When a running workout clock read 0:00 (for a self-updating timer text); nil while paused.
     func runningSince(at now: Date = .now) -> Date? {
-        guard let holdSince else { return startedAt.addingTimeInterval(stoppedSeconds) }
-        guard restOver(at: now), let restEndsAt else { return nil }
-        return startedAt.addingTimeInterval(stoppedSeconds + restEndsAt.timeIntervalSince(holdSince))
+        holdSince == nil ? startedAt.addingTimeInterval(stoppedSeconds) : nil
     }
 
-    /// Workout time at `now`, without pauses and rests.
+    /// Workout time at `now`, without pauses.
     func elapsed(at now: Date = .now) -> TimeInterval {
         if let since = runningSince(at: now) { return max(0, now.timeIntervalSince(since)) }
         return max(0, (holdSince ?? now).timeIntervalSince(startedAt) - stoppedSeconds)
@@ -58,12 +55,9 @@ struct WorkoutTimes: Codable, Hashable {
 
     // MARK: Changes. Each one first closes a rest that ran out, so the order of events never matters.
 
-    /// Folds a rest that ran out before `now` into the stopped time.
+    /// Clears a rest that ran out before `now`.
     mutating func settle(at now: Date = .now) {
-        guard restOver(at: now), let restEndsAt, let holdSince else { return }
-        stoppedSeconds += restEndsAt.timeIntervalSince(holdSince)
-        self.holdSince = nil
-        self.restEndsAt = nil
+        if restOver(at: now) { restEndsAt = nil }
     }
 
     mutating func togglePause(at now: Date = .now) {
@@ -71,30 +65,23 @@ struct WorkoutTimes: Codable, Hashable {
         if let pausedAt {
             let paused = now.timeIntervalSince(pausedAt)
             self.pausedAt = nil
-            if let restEndsAt {
-                // Still resting: the rest keeps what it had left, and the workout clock keeps standing still.
-                self.restEndsAt = restEndsAt.addingTimeInterval(paused)
-            } else if let holdSince {
-                stoppedSeconds += now.timeIntervalSince(holdSince)
-                self.holdSince = nil
-            }
+            // Both clocks carry on from where they stood: the rest keeps what it had left.
+            if let restEndsAt { self.restEndsAt = restEndsAt.addingTimeInterval(paused) }
+            stoppedSeconds += now.timeIntervalSince(holdSince ?? pausedAt)
+            holdSince = nil
         } else {
             pausedAt = now
-            if holdSince == nil { holdSince = now }
+            holdSince = now
         }
     }
 
-    /// Starts a rest of `seconds`: the workout clock stops on the second it shows, and the rest ends on a whole
-    /// second of it. A paused workout resumes first (logging a set means training again).
+    /// Starts a rest of `seconds`, ending on a whole second of the workout clock. The workout clock keeps running.
+    /// A paused workout resumes first (logging a set means training again).
     mutating func startRest(_ seconds: Double, at now: Date = .now) {
         settle(at: now)
         if pausedAt != nil { togglePause(at: now) }
-        if holdSince == nil {
-            let start = startedAt.addingTimeInterval(stoppedSeconds)
-            holdSince = start.addingTimeInterval(now.timeIntervalSince(start).rounded(.down))
-        }
-        let hold = holdSince!
-        let end = hold.addingTimeInterval((now.timeIntervalSince(hold) + seconds).rounded(.up))
+        let start = startedAt.addingTimeInterval(stoppedSeconds)
+        let end = start.addingTimeInterval((now.timeIntervalSince(start) + seconds).rounded(.up))
         restEndsAt = end
         restSeconds = end.timeIntervalSince(now).rounded()
     }
@@ -106,14 +93,8 @@ struct WorkoutTimes: Codable, Hashable {
         restSeconds = max(restSeconds, (restRemaining(at: now) ?? 0).rounded())
     }
 
-    /// Skip: the rest ends now and the workout clock runs again (unless the workout is paused).
+    /// Skip: the rest ends now.
     mutating func endRest(at now: Date = .now) {
-        settle(at: now)
-        guard restEndsAt != nil else { return }
         restEndsAt = nil
-        if pausedAt == nil, let holdSince {
-            stoppedSeconds += now.timeIntervalSince(holdSince)
-            self.holdSince = nil
-        }
     }
 }
