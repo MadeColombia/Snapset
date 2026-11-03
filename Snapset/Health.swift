@@ -7,7 +7,9 @@ enum Health {
     private static let heartRateType = HKQuantityType(.heartRate)
 
     /// iOS shows the permission sheet only the first time; later calls return at once.
-    private static func requestAccess() async -> Bool {
+    /// Asked during onboarding, so the first finished workout isn't interrupted by it.
+    @discardableResult
+    static func requestAccess() async -> Bool {
         guard HKHealthStore.isHealthDataAvailable() else { return false }
         do {
             try await store.requestAuthorization(toShare: [HKObjectType.workoutType()], read: [heartRateType])
