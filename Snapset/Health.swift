@@ -92,7 +92,7 @@ enum Health {
         guard await requestAccess() else { return }
         let sample = HKQuantitySample(type: effortType, quantity: HKQuantity(unit: .appleEffortScore(), doubleValue: Double(score)),
                                       start: workout.startDate, end: workout.endDate)
-        try? await store.relateWorkoutEffortSample(sample, with: workout, activity: nil)
+        _ = try? await store.relateWorkoutEffortSample(sample, with: workout, activity: nil)
     }
 
     /// Deletes the workout Snapset saved for `start...end`, with the calories and effort Snapset attached to it.
