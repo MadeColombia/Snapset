@@ -22,44 +22,29 @@ struct WorkoutLiveActivity: Widget {
                 .activitySystemActionForegroundColor(Color.snap.textPrimary)
         } dynamicIsland: { context in
             let phase = context.state.phase(isStale: context.isStale)
-            // Expanded: badge and next set on the left, phase and clock on the right, one row of icon buttons below.
+            // Expanded: the badge and the clock sit beside the camera, each with fixed room so the clock never truncates;
+            // the phase, exercise and set share one line below, then one row of icon buttons.
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    WorkoutBadge(state: context.state, isStale: context.isStale, size: 48) { Logo() }
+                    WorkoutBadge(state: context.state, isStale: context.isStale, size: 44) { Logo() }
                         .padding(.leading, 6)
-                        .padding(.top, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text(phase.label.uppercased())
-                            .font(.caption2.weight(.bold))
-                            .tracking(0.8)
-                            .foregroundStyle(phase.color)
-                        WorkoutClock(state: context.state, isStale: context.isStale)
-                            .font(.system(size: 36, weight: .semibold, design: .rounded))
-                            .minimumScaleFactor(0.6)
-                            .multilineTextAlignment(.trailing)
-                            .frame(maxWidth: 140, alignment: .trailing)
-                    }
-                    .padding(.trailing, 6)
-                }
-                DynamicIslandExpandedRegion(.center) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(context.state.exercise.isEmpty ? context.attributes.routineName : context.state.exercise)
-                            .font(.headline)
-                            .foregroundStyle(Color.snap.textPrimary)
-                        Text(context.state.setLine)
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(Color.snap.textSecondary)
-                    }
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 6)
+                    WorkoutClock(state: context.state, isStale: context.isStale)
+                        .font(.system(size: 32, weight: .semibold, design: .rounded))
+                        .minimumScaleFactor(0.5)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 112, height: 44, alignment: .trailing)
+                        .padding(.trailing, 6)
+                        .dynamicIsland(verticalPlacement: .belowIfTooWide)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Controls(state: context.state)
-                        .padding(.horizontal, 6)
-                        .padding(.top, 8)
+                    VStack(spacing: 10) {
+                        StatusLine(state: context.state, phase: phase, routineName: context.attributes.routineName)
+                        Controls(state: context.state)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.top, 4)
                 }
             } compactLeading: {
                 CompactIcon(phase: phase)
@@ -73,6 +58,33 @@ struct WorkoutLiveActivity: Widget {
             }
             .keylineTint(phase.color)
         }
+    }
+}
+
+/// One line: "RESTING  Leg Extension · Set 1/4 · 15 kg × 15". Live Activities can't animate a scrolling line,
+/// so the set details give way first (the exercise name is kept, the end is cut with an ellipsis).
+private struct StatusLine: View {
+    let state: WorkoutActivityAttributes.ContentState
+    let phase: WorkoutPhase
+    let routineName: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(phase.label.uppercased())
+                .font(.caption.weight(.bold))
+                .tracking(0.8)
+                .foregroundStyle(phase.color)
+                .fixedSize()
+            Text(state.exercise.isEmpty ? routineName : state.exercise)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.snap.textPrimary)
+                .layoutPriority(1)
+            Text(state.setLine)
+                .font(.subheadline)
+                .foregroundStyle(Color.snap.textSecondary)
+            Spacer(minLength: 0)
+        }
+        .lineLimit(1)
     }
 }
 
