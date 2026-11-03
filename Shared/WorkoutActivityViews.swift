@@ -120,7 +120,7 @@ struct WorkoutLockScreenView<Logo: View>: View {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Color.snap.textSecondary)
                         .lineLimit(1)
-                    if phase != .training {
+                    if state.times.restRemaining() != nil {
                         // The big clock shows the rest; the total keeps its place up here, so the activity time stays clear.
                         Spacer(minLength: 4)
                         ElapsedTime(times: state.times)
