@@ -49,8 +49,8 @@ enum Health {
         (3.5 - 1) * (bodyKg ?? 70) * activeSeconds / 3_600
     }
 
-    /// Saves a Traditional Strength Training workout named after the routine, with its active calories.
-    /// Calories are written only when nothing else measured them, so a Watch's own reading is never counted twice.
+    /// Saves a Traditional Strength Training workout with its active calories and the routine name in its metadata.
+    /// Fitness titles third-party workouts by activity type, so the name shows only to apps that read the metadata.
     static func saveWorkout(start: Date, end: Date, name: String?, activeSeconds: TimeInterval) async {
         guard await requestAccess() else { return }
         let configuration = HKWorkoutConfiguration()
@@ -61,13 +61,14 @@ enum Health {
             try await builder.beginCollection(at: start)
             var metadata: [String: Any] = [HKMetadataKeyIndoorWorkout: true]
             if let name, !name.isEmpty { metadata[HKMetadataKeyWorkoutBrandName] = name }
-            try await builder.addMetadata(metadata)
+            try? await builder.addMetadata(metadata)
+            // Fitness shows only calories attached to the workout itself, so they are always written:
+            // the Watch's own reading when there is one, else the estimate. Health counts overlapping
+            // calories from different sources once, by source priority, so the day's total isn't doubled.
             let energy = await energy(from: start, to: end, activeSeconds: activeSeconds)
-            if !energy.measured {
-                let sample = HKQuantitySample(type: energyType, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: energy.kcal),
-                                              start: start, end: end)
-                try await builder.addSamples([sample])
-            }
+            let sample = HKQuantitySample(type: energyType, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: energy.kcal),
+                                          start: start, end: end)
+            try? await builder.addSamples([sample])  // calories turned off in Health must not cost the workout
             try await builder.endCollection(at: end)
             guard let workout = try await builder.finishWorkout() else { return }
             await MainActor.run { lastWorkout = workout }
