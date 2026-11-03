@@ -5,29 +5,19 @@ import SnapsetUI
 /// Shows the unfinished session if there is one (so a killed app resumes), otherwise the routine picker.
 struct WorkoutView: View {
     @Query(filter: WorkoutSession.isActive, sort: \WorkoutSession.startedAt, order: .reverse) private var active: [WorkoutSession]
-    @State private var goingUp: [String]?
-    @State private var best: String?
+    @State private var summary: WorkoutSummary?
 
     var body: some View {
         NavigationStack {
             if let session = active.first {
-                SessionView(session: session) { goingUp = $0; best = $1 }
+                SessionView(session: session) { summary = $0 }
             } else {
                 StartWorkoutView()
             }
         }
-        .alert("Workout saved", isPresented: Binding(get: { goingUp != nil }, set: { if !$0 { goingUp = nil; best = nil } })) {
-            Button("OK") {}
-        } message: {
-            // The new best is the summary's one cheer, so it leads.
-            let cheer = best.map { $0 + "\n\n" } ?? ""
-            if let goingUp, !goingUp.isEmpty {
-                Text(cheer + "Going up next time:\n" + goingUp.joined(separator: "\n"))
-            } else {
-                Text(cheer + "Same weights next time. Try for one more rep.")
-            }
+        .fullScreenCover(item: $summary) { summary in
+            WorkoutSummaryView(summary: summary) { self.summary = nil }
         }
-        .sensoryFeedback(Snap.Haptic.newBest, trigger: best) { _, new in new != nil }
     }
 }
 
@@ -161,7 +151,7 @@ struct SessionView: View {
     @AppStorage("weightUnit") private var unit: WeightUnit = .kg
     @AppStorage("goal") private var goal: Goal = .muscle
     @Bindable var session: WorkoutSession
-    let onFinish: (_ goingUp: [String], _ best: String?) -> Void
+    let onFinish: (WorkoutSummary) -> Void
     @Query private var exercises: [Exercise]
     @State private var sheet: Sheet?
     @AppStorage("openLogSet") private var openLogSet = false  // set by Log set in the Dynamic Island
@@ -173,7 +163,7 @@ struct SessionView: View {
     @State private var keepGoing = false  // "Keep going" on the all-sets-done card hides it until the plan has sets to do again
     @State private var pausedLog: Exercise?  // Log set tapped while paused: ask before the clock runs again
 
-    init(session: WorkoutSession, onFinish: @escaping (_ goingUp: [String], _ best: String?) -> Void) {
+    init(session: WorkoutSession, onFinish: @escaping (WorkoutSummary) -> Void) {
         self.session = session
         self.onFinish = onFinish
     }
@@ -546,23 +536,11 @@ struct SessionView: View {
     }
 
     private func finish() {
-        let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        // The first exercise (in plan order) with a heavier top set than ever is the summary's one cheer.
-        let best = session.plan.lazy.compactMap { planned -> String? in
-            guard let exercise = byID[planned.exerciseID],
-                  let top = sets(of: exercise).max(by: { ($0.weightKg, $0.reps) < ($1.weightKg, $1.reps) }),
-                  Progression.isNewBest(.init(weightKg: top.weightKg, reps: top.reps),
-                                        previous: Progression.history(of: exercise.id, excluding: session, in: context).flatMap { $0 })
-            else { return nil }
-            return "New best: \(load(kg: top.weightKg, reps: top.reps)) on \(exercise.name.lowercased())!"
-        }.first
         guard session.finish(in: context) else { return }  // discarded, or a second tap
-        let trained = Set(session.sets.compactMap(\.exercise?.id))
-        let goingUp = nextTargets(excluding: nil).compactMap { id, target -> String? in
-            guard trained.contains(id), target.change == .increase, let kg = target.weightKg, let name = byID[id]?.name else { return nil }
-            return "\(name): \(unit.format(kg: kg))"
+        let nextKg = nextTargets(excluding: nil).compactMapValues { target in
+            target.change == .increase ? target.weightKg : nil
         }
-        onFinish(goingUp.sorted(), best)
+        onFinish(WorkoutSummary(session: session, nextKg: nextKg, in: context))
     }
 }
 

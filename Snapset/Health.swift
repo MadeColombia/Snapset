@@ -44,4 +44,21 @@ enum Health {
         let bpm = HKUnit.count().unitDivided(by: .minute())
         return (average.doubleValue(for: bpm), max.doubleValue(for: bpm))
     }
+
+    /// Every heart rate reading between `start` and `end`, oldest first; empty with no readings or no permission.
+    static func heartRateSamples(from start: Date, to end: Date) async -> [HeartRatePoint] {
+        guard await requestAccess() else { return [] }
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: heartRateType, predicate: HKQuery.predicateForSamples(withStart: start, end: end))],
+            sortDescriptors: [SortDescriptor(\.startDate)]
+        )
+        guard let samples = try? await descriptor.result(for: store) else { return [] }
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        return samples.map { HeartRatePoint(date: $0.startDate, bpm: $0.quantity.doubleValue(for: bpm)) }
+    }
+}
+
+struct HeartRatePoint: Hashable {
+    let date: Date
+    let bpm: Double
 }
