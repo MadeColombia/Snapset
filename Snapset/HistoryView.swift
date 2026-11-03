@@ -89,8 +89,9 @@ struct HistoryView: View {
                                         .snapText(.secondary)
                                 }
                             }
-                            .swipeActions {
+                            .swipeActions(allowsFullSwipe: false) {
                                 Button("Delete", systemImage: "trash", role: .destructive) { deleting = session }
+                                    .tint(.red)  // the app tint is white, which would wash the swipe out
                             }
                         }
                     }
@@ -217,15 +218,20 @@ struct SessionDetailView: View {
                 }
                 .listRowBackground(Color.snap.surface)
             }
+
+            // At the bottom, out of the way, like Contacts and Health: a badly recorded workout is the only reason to come here.
+            Section {
+                Button(role: .destructive) { deleting = session } label: {
+                    Label("Delete workout", systemImage: "trash")
+                        .frame(maxWidth: .infinity, minHeight: Snap.Tap.min)
+                }
+                .foregroundStyle(.red)
+            }
+            .listRowBackground(Color.snap.surface)
         }
         .snapListBackground()
         .navigationTitle(session.routineName ?? "Workout")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            Menu("More", systemImage: "ellipsis.circle") {
-                Button("Delete workout", systemImage: "trash", role: .destructive) { deleting = session }
-            }
-        }
         .deleteWorkoutDialog($deleting, in: context) { dismiss() }
         .task {
             guard session.finishedAt != nil else { return }
@@ -236,19 +242,19 @@ struct SessionDetailView: View {
 }
 
 private extension View {
-    /// Asks before a workout leaves history for good. Recorded badly is the usual reason, so it says what goes with it.
+    /// Asks before a workout leaves history for good, in a centred alert so it reads as a decision, not a menu.
     func deleteWorkoutDialog(_ session: Binding<WorkoutSession?>, in context: ModelContext, onDeleted: @escaping () -> Void = {}) -> some View {
-        confirmationDialog("Delete this workout?", isPresented: Binding(get: { session.wrappedValue != nil },
-                                                                         set: { if !$0 { session.wrappedValue = nil } }),
-                           titleVisibility: .visible, presenting: session.wrappedValue) { workout in
-            Button("Delete workout", role: .destructive) {
+        alert("Delete this workout?", isPresented: Binding(get: { session.wrappedValue != nil },
+                                                           set: { if !$0 { session.wrappedValue = nil } }),
+              presenting: session.wrappedValue) { workout in
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
                 workout.deleteFromHistory(in: context)
                 session.wrappedValue = nil
                 onDeleted()
             }
-            Button("Cancel", role: .cancel) {}
         } message: { workout in
-            Text("Its \(workout.sets.count) sets leave your history and progress, and the copy Snapset saved in Apple Health is deleted too. This can't be undone.")
+            Text("\(workout.sets.count == 1 ? "Its 1 set comes" : "Its \(workout.sets.count) sets come") off your history and progress, and out of Apple Health. You can't undo this.")
         }
     }
 }

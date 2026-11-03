@@ -40,7 +40,7 @@ struct WorkoutSummaryView: View {
         }
         .background(Color.snap.background)
         .safeAreaInset(edge: .bottom) {
-            PrimaryButton("Done", style: .neutral, action: onDone)
+            PrimaryButton("Done", systemImage: "checkmark", style: .finish, action: onDone)
                 .padding(.horizontal, Snap.Spacing.l)
                 .padding(.vertical, Snap.Spacing.s)
                 .background(Color.snap.background)
@@ -96,6 +96,7 @@ struct WorkoutSummaryView: View {
         }
         .padding(Snap.Spacing.l)
         .background(Color.snap.surface, in: .rect(cornerRadius: Snap.Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Snap.Radius.card).fill(Color.snap.statusUp.opacity(0.1)).allowsHitTesting(false))
         .overlay(RoundedRectangle(cornerRadius: Snap.Radius.card).stroke(Color.snap.statusUp.opacity(0.6)))
         .accessibilityElement(children: .combine)
     }
@@ -105,15 +106,19 @@ struct WorkoutSummaryView: View {
     private var stats: some View {
         let columns = [GridItem(.adaptive(minimum: 150), spacing: Snap.Spacing.s)]
         return LazyVGrid(columns: columns, spacing: Snap.Spacing.s) {
-            StatTile(value: Duration.seconds(summary.activeSeconds).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)),
-                     label: "Workout time", symbol: "stopwatch")
+            StatTile(value: Self.workoutTime(summary.activeSeconds), label: "Workout time",
+                     symbol: "stopwatch.fill", tint: Color.snap.statusHold)
             StatTile(value: currentEnergy.map { "\(Int($0.kcal.rounded())) kcal" } ?? "…",
-                     label: currentEnergy?.measured == false ? "Active calories (estimate)" : "Active calories", symbol: "flame")
-            StatTile(value: summary.averageRest.map(Self.clock) ?? "–", label: restLabel, symbol: "timer")
+                     label: currentEnergy?.measured == false ? "Active calories (estimate)" : "Active calories",
+                     symbol: "flame.fill", tint: Color.snap.statusDown)
+            StatTile(value: summary.averageRest.map(Self.clock) ?? "–", label: restLabel, symbol: "timer", tint: restTint)
             if let stats = heartRateStats {
-                StatTile(value: "\(Int(stats.average.rounded())) bpm", label: "Average heart rate", symbol: "heart")
+                // Orange, like the heart rate line it sums up.
+                StatTile(value: "\(Int(stats.average.rounded())) bpm", label: "Average heart rate",
+                         symbol: "heart.fill", tint: Color.snap.accent)
             } else {
-                StatTile(value: "\(summary.newBests.count)", label: summary.newBests.count == 1 ? "New best" : "New bests", symbol: "trophy")
+                StatTile(value: "\(summary.newBests.count)", label: summary.newBests.count == 1 ? "New best" : "New bests",
+                         symbol: "trophy.fill", tint: Color.snap.statusUp)
             }
         }
     }
@@ -127,6 +132,22 @@ struct WorkoutSummaryView: View {
         }
     }
 
+    /// Green when the rest was on point, amber when it was off, blue with nothing to judge.
+    private var restTint: Color {
+        switch summary.restVerdict {
+        case .onPoint: Color.snap.statusUp
+        case .short, .long: Color.snap.statusDown
+        case nil: Color.snap.statusHold
+        }
+    }
+
+    /// Seconds for a very short workout, so a quick one doesn't read "0 min".
+    static func workoutTime(_ seconds: TimeInterval) -> String {
+        seconds < 60
+            ? Duration.seconds(seconds.rounded()).formatted(.units(allowed: [.seconds], width: .abbreviated))
+            : Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
+    }
+
     static func clock(_ seconds: TimeInterval) -> String {
         Duration.seconds(seconds.rounded()).formatted(.time(pattern: .minuteSecond))
     }
@@ -134,13 +155,22 @@ struct WorkoutSummaryView: View {
     // MARK: Effort
 
     private static let effortWords = [1: "Easy", 4: "Moderate", 7: "Hard", 9: "All out"]
+    /// Easy in green, moderate in blue, hard in amber: the filled bar warms up as the score climbs.
+    static func effortTint(_ score: Int) -> Color {
+        switch score {
+        case ...3: Color.snap.statusUp
+        case 4...6: Color.snap.statusHold
+        default: Color.snap.statusDown
+        }
+    }
+
     private static func effortWord(_ score: Int) -> String {
         effortWords.filter { $0.key <= score }.max { $0.key < $1.key }?.value ?? "Easy"
     }
 
     /// How hard it felt, on the Fitness app's 1 to 10 scale, saved with the workout in Apple Health.
     private var effortCard: some View {
-        Card("How hard was it?") {
+        Card("How hard was it?", symbol: "gauge.with.dots.needle.67percent", tint: effort.map(Self.effortTint) ?? Color.snap.statusHold) {
             HStack(spacing: Snap.Spacing.xs) {
                 ForEach(1...10, id: \.self) { score in
                     Button {
@@ -151,10 +181,9 @@ struct WorkoutSummaryView: View {
                             .font(.subheadline.weight(.semibold))
                             .fontDesign(.rounded)
                             .frame(maxWidth: .infinity, minHeight: Snap.Tap.min)
-                            .foregroundStyle(effort == score ? Color.snap.background : Color.snap.textPrimary)
-                            .background(effort.map { score <= $0 } == true ? Color.snap.textPrimary : Color.snap.surfaceRaised,
+                            .foregroundStyle(effort.map { score <= $0 } == true ? Color.snap.onAccent : Color.snap.textPrimary)
+                            .background(effort.map { score <= $0 } == true ? Self.effortTint(score) : Color.snap.surfaceRaised,
                                         in: .rect(cornerRadius: Snap.Radius.chip))
-                            .opacity(effort.map { score <= $0 } == true && effort != score ? 0.55 : 1)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(score), \(Self.effortWord(score))")
@@ -175,7 +204,7 @@ struct WorkoutSummaryView: View {
         let gaps = summary.restGaps
         if gaps.count > 1, let average = summary.averageRest {
             let target = summary.targetRestSeconds
-            Card("Rest between sets") {
+            Card("Rest between sets", symbol: "timer", tint: restTint) {
                 Chart {
                     ForEach(Array(gaps.enumerated()), id: \.offset) { index, gap in
                         BarMark(x: .value("Rest", index + 1), y: .value("Seconds", gap / 60), width: .ratio(0.6))
@@ -227,7 +256,7 @@ struct WorkoutSummaryView: View {
     @ViewBuilder
     private var heartRateCard: some View {
         if let readings, let stats = heartRateStats, readings.count > 1 {
-            Card("Heart rate") {
+            Card("Heart rate", symbol: "heart.fill", tint: Color.snap.accent) {
                 Chart {
                     ForEach(Array(summary.setTimes.enumerated()), id: \.offset) { _, time in
                         RuleMark(x: .value("Set", time))
@@ -270,7 +299,7 @@ struct WorkoutSummaryView: View {
                 Text("Thin lines are your sets. From Apple Health.").snapText(.secondary)
             }
         } else if let readings, readings.isEmpty {
-            Card("Heart rate") {
+            Card("Heart rate", symbol: "heart.fill", tint: Color.snap.accent) {
                 Text("No heart rate in Apple Health for this workout. Wear your Apple Watch and it shows up here.")
                     .snapText(.secondary)
             }
@@ -351,7 +380,7 @@ struct WorkoutSummaryView: View {
     // MARK: Bests, next time, exercises
 
     private var newBestsCard: some View {
-        Card("New bests") {
+        Card("New bests", symbol: "trophy.fill", tint: Color.snap.statusUp) {
             ForEach(summary.newBests) { result in
                 HStack(spacing: Snap.Spacing.m) {
                     Image(systemName: "trophy.fill").foregroundStyle(Color.snap.statusUp).accessibilityHidden(true)
@@ -366,7 +395,7 @@ struct WorkoutSummaryView: View {
     }
 
     private var nextTimeCard: some View {
-        Card("Next time") {
+        Card("Next time", symbol: "arrow.up.circle.fill", tint: Color.snap.statusUp) {
             if summary.goingUp.isEmpty {
                 Text("Same weights. Get one more rep on each set and the weight goes up.").snapText(.secondary)
             } else {
@@ -385,7 +414,7 @@ struct WorkoutSummaryView: View {
     }
 
     private var exercisesCard: some View {
-        Card("Your sets") {
+        Card("Your sets", symbol: "list.bullet", tint: Color.snap.statusHold) {
             ForEach(summary.exercises) { result in
                 VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
                     Text(result.name).snapText(.sectionTitle).foregroundStyle(Color.snap.textPrimary)
@@ -405,16 +434,25 @@ struct WorkoutSummaryView: View {
 /// A titled block on the overview.
 private struct Card<Content: View>: View {
     let title: String
+    let symbol: String?
+    let tint: Color
     @ViewBuilder let content: Content
 
-    init(_ title: String, @ViewBuilder content: () -> Content) {
+    init(_ title: String, symbol: String? = nil, tint: Color = Color.snap.textSecondary, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.symbol = symbol
+        self.tint = tint
         self.content = content()
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Snap.Spacing.m) {
-            Text(title).snapText(.sectionTitle).foregroundStyle(Color.snap.textPrimary).accessibilityAddTraits(.isHeader)
+            HStack(spacing: Snap.Spacing.s) {
+                if let symbol { IconBadge(symbol: symbol, tint: tint) }
+                Text(title).snapText(.sectionTitle).foregroundStyle(Color.snap.textPrimary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
             content
         }
         .padding(Snap.Spacing.l)
@@ -423,19 +461,38 @@ private struct Card<Content: View>: View {
     }
 }
 
+/// A tinted circle behind a symbol: the colour that tells the overview's blocks apart at a glance.
+private struct IconBadge: View {
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(tint)
+            .frame(width: 32, height: 32)
+            .background(tint.opacity(0.18), in: .circle)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Every tile is the same size: the label always keeps room for two lines, so a long one doesn't make its tile taller.
 private struct StatTile: View {
     let value: String
     let label: String
     let symbol: String
+    let tint: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
-            Image(systemName: symbol).foregroundStyle(Color.snap.textSecondary).accessibilityHidden(true)
-            Text(value).snapText(.numberMedium).foregroundStyle(Color.snap.textPrimary).lineLimit(1).minimumScaleFactor(0.6)
-            Text(label).snapText(.secondary)
+        VStack(alignment: .leading, spacing: Snap.Spacing.s) {
+            IconBadge(symbol: symbol, tint: tint)
+            VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
+                Text(value).snapText(.numberMedium).foregroundStyle(Color.snap.textPrimary).lineLimit(1).minimumScaleFactor(0.6)
+                Text(label).snapText(.secondary).lineLimit(2, reservesSpace: true)
+            }
         }
         .padding(Snap.Spacing.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color.snap.surface, in: .rect(cornerRadius: Snap.Radius.card))
         .accessibilityElement(children: .combine)
     }
