@@ -170,6 +170,7 @@ struct SessionView: View {
     @State private var targets: [String: Progression.Target] = [:]
     @State private var chosen: Int?  // a step the lifter tapped; nil follows the plan
     @State private var toast: Toast?
+    @State private var keepGoing = false  // "Keep going" on the all-sets-done card hides it until the plan has sets to do again
     @State private var pausedLog: Exercise?  // Log set tapped while paused: ask before the clock runs again
 
     init(session: WorkoutSession, onFinish: @escaping (_ goingUp: [String], _ best: String?) -> Void) {
@@ -205,6 +206,9 @@ struct SessionView: View {
             ScrollView {
                 VStack(spacing: Snap.Spacing.xl) {
                     header
+                    if allDone {
+                        doneCard.id("done").transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                     VStack(spacing: 0) {
                         ForEach(Array(session.plan.enumerated()), id: \.offset) { index, planned in
                             if let exercise = byID[planned.exerciseID] {
@@ -218,6 +222,9 @@ struct SessionView: View {
                 .padding(.bottom, toast == nil ? 0 : 80)  // room to scroll the last step clear of the toast
             }
             .onAppear { if let current { proxy.scrollTo(current, anchor: .top) } }
+            .onChange(of: allDone) { _, done in
+                if done { withAnimation(Snap.Motion.standard) { proxy.scrollTo("done", anchor: .top) } }
+            }
             .onChange(of: current) { _, new in
                 if let new { withAnimation(Snap.Motion.standard) { proxy.scrollTo(new, anchor: .top) } }
             }
@@ -225,6 +232,10 @@ struct SessionView: View {
         .background(Color.snap.background)
         .snapAnimation(value: current)
         .snapAnimation(value: session.restEndsAt)
+        .snapAnimation(value: allDone)
+        .sensoryFeedback(.success, trigger: allDone) { _, done in done }
+        .onChange(of: upNext == nil) { _, finished in if !finished { keepGoing = false } }
+        .task { await WorkoutReminders.requestAccess() }
         .overlay(alignment: .bottom) {
             if let toast {
                 UndoToast(toast.message, isBest: toast.isBest) {
@@ -308,6 +319,24 @@ struct SessionView: View {
         .task(id: "\(goal.rawValue)-\(unit.rawValue)") {
             targets = nextTargets(excluding: session)
         }
+    }
+
+    /// Every planned set is logged: ask once, on the screen, instead of ending the workout on its own,
+    /// since people often add an extra set.
+    private var allDone: Bool { upNext == nil && !session.sets.isEmpty && !keepGoing }
+
+    private var doneCard: some View {
+        VStack(alignment: .leading, spacing: Snap.Spacing.m) {
+            VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
+                Text("That's every set.").snapText(.sectionTitle).foregroundStyle(Color.snap.textPrimary)
+                Text("Finish to save it to your history, or keep going if you want an extra set.").snapText(.secondary)
+            }
+            PrimaryButton("Finish workout", systemImage: "checkmark", style: .finish, action: finish)
+            SecondaryButton("Keep going") { keepGoing = true }
+        }
+        .padding(Snap.Spacing.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.snap.surface, in: .rect(cornerRadius: Snap.Radius.card))
     }
 
     private var header: some View {

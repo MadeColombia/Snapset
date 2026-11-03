@@ -37,10 +37,12 @@ struct OnboardingView: View {
     @AppStorage("experience") private var savedExperience: Experience = .beginner
     @AppStorage("trainingDays") private var savedDays = 3
     @AppStorage("hasOnboarded") private var hasOnboarded = false
+    @AppStorage("saveToHealth") private var savedHealth = true
     // Kept local until "Get started", so Skip leaves the defaults in place.
     @State private var goal = Goal.muscle
     @State private var experience = Experience.beginner
     @State private var days = 3
+    @State private var health = true
 
     var body: some View {
         NavigationStack {
@@ -51,10 +53,25 @@ struct OnboardingView: View {
                 .listRowBackground(Color.snap.surface)
                 TrainingProfileSection(goal: $goal, experience: $experience, days: $days)
                 Section {
+                    Toggle(isOn: $health) {
+                        Label("Connect Apple Health", systemImage: "heart.fill")
+                    }
+                } header: {
+                    Text("Apple Health")
+                } footer: {
+                    Text("Snapset saves each finished workout to Health, so it counts toward your Activity rings, and reads heart rate from your Apple Watch. iOS asks you to allow this next. You can change it later in Settings.")
+                }
+                .listRowBackground(Color.snap.surface)
+                Section {
                     PrimaryButton("Get started") {
                         savedGoal = goal
                         savedExperience = experience
                         savedDays = days
+                        savedHealth = health
+                        if health {
+                            // The iOS sheet shows over the app once this screen closes; the answer is remembered by iOS.
+                            Task { await Health.requestAccess() }
+                        }
                         hasOnboarded = true
                     }
                 }

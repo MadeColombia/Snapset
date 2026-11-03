@@ -81,6 +81,7 @@ struct ScreenSnapshotTests {
             ("countdown", { AnyView(CountdownView(onFinish: {}, onCancel: {})) }),
             ("workout-first-set", { workout(0, 0, false, false) }),
             ("workout-exercise-done", { workout(3, 0, false, false) }),
+            ("workout-all-done", { allDone }),
             ("workout-rest-paused", { workout(3, 1, true, true) }),
             ("workout-rest", { workout(3, 1, true, false) }),  // leaves the session mid-workout for the screens below
             ("set-confirm", { AnyView(SetConfirmView(exercise: press, targetKg: 50, targetReps: 8) { _, _ in }) }),
@@ -107,6 +108,18 @@ struct ScreenSnapshotTests {
                 try data.write(to: dir.appending(path: "app-\(name)-\(variant).png"))
             }
         }
+    }
+
+    /// Every planned set logged: the "That's every set" card. Rendered in a separate session so the shared one stays mid-workout.
+    private var allDone: AnyView {
+        let done = WorkoutSession(routine: routine)
+        context.insert(done)
+        for (index, planned) in done.plan.enumerated() {
+            let exercise = routine.items.sorted { $0.order < $1.order }[index].exercise!
+            done.sets += (0..<planned.targetSets).map { _ in SetEntry(exercise: exercise, weightKg: 40, reps: 12) }
+        }
+        try? context.save()
+        return AnyView(NavigationStack { SessionView(session: done) { _, _ in } })
     }
 
     /// The Lock Screen Live Activity in its three phases, on a dark wallpaper-like backdrop.

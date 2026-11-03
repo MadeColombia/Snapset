@@ -5,9 +5,11 @@ import SwiftData
 /// Starts, updates and ends the workout's Live Activity (Dynamic Island and Lock Screen).
 enum WorkoutActivity {
     /// Shows `session` as it is now, starting the activity or updating the one already running for it.
+    /// Also keeps the rest-over and idle notifications in step, since every change to the session comes through here.
     static func sync(_ session: WorkoutSession, in context: ModelContext) {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         let state = state(of: session, in: context)
+        WorkoutReminders.sync(session, upNext: state.detail)
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         // Going stale when the rest runs out tells the widget to go back to the workout time, even if the app is asleep by then.
         let staleDate = state.times.phase() == .resting ? state.times.restEndsAt : nil
         let content = ActivityContent(state: state, staleDate: staleDate)
@@ -16,12 +18,18 @@ enum WorkoutActivity {
             Task { await current.update(content) }
             return
         }
-        end()  // one left over from a workout that ended while the app was closed
+        endActivities()  // one left over from a workout that ended while the app was closed
         let attributes = WorkoutActivityAttributes(routineName: session.routineName ?? "Workout", startedAt: session.startedAt)
         _ = try? Activity.request(attributes: attributes, content: content)
     }
 
+    /// Ends the Live Activity and cancels the workout's reminders.
     static func end() {
+        WorkoutReminders.cancel()
+        endActivities()
+    }
+
+    private static func endActivities() {
         for activity in Activity<WorkoutActivityAttributes>.activities {
             Task { await activity.end(nil, dismissalPolicy: .immediate) }
         }
