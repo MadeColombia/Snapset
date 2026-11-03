@@ -93,7 +93,7 @@ enum WorkoutActivity {
             setLine = "All planned sets logged"
         }
         return .init(times: session.times, exercise: name, setLine: setLine,
-                     detail: name.isEmpty ? setLine : "\(setLine) · \(name)")
+                     detail: name.isEmpty ? setLine : "\(setLine) · \(name)", allSetsDone: planned == nil)
     }
 }
 
