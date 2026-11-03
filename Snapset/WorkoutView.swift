@@ -165,6 +165,7 @@ struct SessionView: View {
     @Query private var exercises: [Exercise]
     @State private var sheet: Sheet?
     @AppStorage("openLogSet") private var openLogSet = false  // set by Log set in the Dynamic Island
+    @AppStorage("confirmFinish") private var confirmFinish = false  // set by Finish in the Dynamic Island while sets are left
     @State private var confirmingFinish = false
     @State private var targets: [String: Progression.Target] = [:]
     @State private var chosen: Int?  // a step the lifter tapped; nil follows the plan
@@ -268,6 +269,7 @@ struct SessionView: View {
             Button(session.sets.isEmpty ? "Discard" : "Finish", role: session.sets.isEmpty ? .destructive : nil, action: finish)
         } message: {
             Text(session.sets.isEmpty ? "No sets were logged, so nothing will be saved."
+                                      : setsLeft > 0 ? "You still have \(setsLeft) planned \(setsLeft == 1 ? "set" : "sets") left. The \(session.sets.count) you logged will be saved."
                                       : "\(session.sets.count) sets will be saved to your history.")
         }
         .alert("Your workout is paused", isPresented: Binding(get: { pausedLog != nil }, set: { if !$0 { pausedLog = nil } }),
@@ -298,6 +300,11 @@ struct SessionView: View {
                     }
                 }
             }
+        }
+        .onChange(of: confirmFinish, initial: true) { _, open in
+            guard open else { return }
+            confirmFinish = false
+            confirmingFinish = true
         }
         .onChange(of: openLogSet, initial: true) { _, open in
             guard open else { return }
@@ -470,6 +477,13 @@ struct SessionView: View {
 
     private func sets(of exercise: Exercise) -> [SetEntry] {
         session.sets.filter { $0.exercise?.id == exercise.id }.sorted { $0.loggedAt < $1.loggedAt }
+    }
+
+    /// Planned sets not logged yet, for the finish alert.
+    private var setsLeft: Int {
+        session.plan.reduce(0) { left, planned in
+            left + max(0, planned.targetSets - session.sets.filter { $0.exercise?.id == planned.exerciseID }.count)
+        }
     }
 
     /// Opens Set confirm, or first asks to resume when the workout is paused.

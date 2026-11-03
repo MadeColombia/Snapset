@@ -113,7 +113,12 @@ private struct Controls: View {
                    label: paused ? "Resume" : "Pause", tint: paused ? Color.snap.actionResume : Color.snap.actionPause)
             button(intent: LogSetIntent(), symbol: "plus", label: "Log set",
                    tint: paused ? Color.snap.textPrimary : Color.snap.accent)
-            button(intent: WorkoutButtonIntent(.finish), symbol: "checkmark", label: "Finish", tint: Color.snap.actionFinish)
+            // With sets left, Finish opens the app to confirm; with every set done it saves in place.
+            if state.allSetsDone {
+                button(intent: WorkoutButtonIntent(.finish), symbol: "checkmark", label: "Finish", tint: Color.snap.actionFinish)
+            } else {
+                button(intent: ConfirmFinishIntent(), symbol: "checkmark", label: "Finish", tint: Color.snap.actionFinish)
+            }
         }
     }
 

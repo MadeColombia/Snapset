@@ -17,6 +17,7 @@ struct SnapsetApp: App {
         WorkoutButtonIntent.handler = { WorkoutActivity.handle($0, in: context) }
         // Read by RootView (Workout tab) and SessionView (the sheet), also when this launch was the tap itself.
         LogSetIntent.handler = { UserDefaults.standard.set(true, forKey: "openLogSet") }
+        ConfirmFinishIntent.handler = { UserDefaults.standard.set(true, forKey: "confirmFinish") }
     }
 
     var body: some Scene {
@@ -32,6 +33,7 @@ struct RootView: View {
 
     @AppStorage("hasOnboarded") private var hasOnboarded = false
     @AppStorage("openLogSet") private var openLogSet = false
+    @AppStorage("confirmFinish") private var confirmFinish = false
     @Query(filter: WorkoutSession.isActive, sort: \WorkoutSession.startedAt, order: .reverse) private var active: [WorkoutSession]
     @State private var tab = AppTab.workout
 
@@ -55,6 +57,7 @@ struct RootView: View {
         .runningWorkoutAccessory(tab == .workout ? nil : bar)
         .tint(Color.snap.textPrimary)  // orange is kept for each screen's one primary action
         .onChange(of: openLogSet, initial: true) { _, open in if open { tab = .workout } }
+        .onChange(of: confirmFinish, initial: true) { _, open in if open { tab = .workout } }
         .fullScreenCover(isPresented: Binding(get: { !hasOnboarded }, set: { hasOnboarded = !$0 })) {
             OnboardingView().tint(Color.snap.textPrimary)
         }

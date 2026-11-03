@@ -10,6 +10,7 @@ struct WorkoutActivityAttributes: ActivityAttributes {
         var exercise: String     // e.g. "Chest Press"; empty when every planned set is logged
         var setLine: String      // e.g. "Set 2/4 · 60 kg × 8", or "All planned sets logged"
         var detail: String       // the two above in one line, for notifications
+        var allSetsDone = false  // Finish saves at once; otherwise it opens the app to confirm
 
         var pausedAt: Date? { times.pausedAt }
     }
@@ -42,6 +43,26 @@ struct WorkoutButtonIntent: LiveActivityIntent {
 
     @MainActor func perform() async throws -> some IntentResult {
         Self.handler?(button)
+        return .result()
+    }
+}
+
+/// Finish from the Dynamic Island while planned sets are left: opens the app on the "Finish this workout?" alert
+/// instead of ending it at once. With every set done, the island uses WorkoutButtonIntent(.finish), which saves in place.
+struct ConfirmFinishIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Finish workout"
+    static let isDiscoverable = false
+    static let openAppWhenRun = true  // iOS 18 to 25; iOS 26 reads supportedModes
+    @available(iOS 26.0, *)
+    static var supportedModes: IntentModes { .foreground }
+
+    /// Set by the app at launch: shows the finish alert on the Workout screen.
+    @MainActor static var handler: (() -> Void)?
+
+    init() {}
+
+    @MainActor func perform() async throws -> some IntentResult {
+        Self.handler?()
         return .result()
     }
 }
