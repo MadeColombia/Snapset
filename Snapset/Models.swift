@@ -80,7 +80,11 @@ final class WorkoutSession {
     var routineName: String?
     var plan: [PlannedExercise] = []
     var pausedAt: Date?
-    var pausedSeconds: Double = 0  // finished pauses, left out of the workout time
+    var pausedSeconds: Double = 0  // closed pauses and rests, left out of the workout time (WorkoutTimes.stoppedSeconds)
+    var holdSince: Date?  // the workout clock has stood still since then, for a rest or a pause
+    // The rest between sets lives here, not in a screen, so the Live Activity, the mini bar and a relaunched app all see it.
+    var restEndsAt: Date?
+    var restSeconds: Double = 0  // the rest's full length, for the ring
     @Relationship(deleteRule: .cascade, inverse: \SetEntry.session) var sets: [SetEntry] = []
 
     static let isActive = #Predicate<WorkoutSession> { $0.finishedAt == nil }
@@ -100,14 +104,28 @@ final class WorkoutSession {
         return (max(startedAt, first - pad), min(end, last + pad))
     }
 
-    func togglePause(at now: Date = .now) {
-        if let pausedAt {
-            pausedSeconds += now.timeIntervalSince(pausedAt)
-            self.pausedAt = nil
-        } else {
-            pausedAt = now
+    /// Both clocks as plain values; the rules live in WorkoutTimes (Shared), so the widget reads them the same way.
+    var times: WorkoutTimes {
+        get {
+            // A workout paused before holdSince existed stood still from its pause.
+            WorkoutTimes(startedAt: startedAt, stoppedSeconds: pausedSeconds, holdSince: holdSince ?? pausedAt,
+                         pausedAt: pausedAt, restEndsAt: restEndsAt, restSeconds: restSeconds)
+        }
+        set {
+            pausedSeconds = newValue.stoppedSeconds
+            holdSince = newValue.holdSince
+            pausedAt = newValue.pausedAt
+            restEndsAt = newValue.restEndsAt
+            restSeconds = newValue.restSeconds
         }
     }
+
+    func togglePause(at now: Date = .now) { times.togglePause(at: now) }
+    func startRest(_ seconds: Double, at now: Date = .now) { times.startRest(seconds, at: now) }
+    func addRest(_ seconds: Double, at now: Date = .now) { times.addRest(seconds, at: now) }
+    func endRest(at now: Date = .now) { times.endRest(at: now) }
+    func settleRest(at now: Date = .now) { times.settle(at: now) }
+    func restRemaining(at now: Date = .now) -> TimeInterval? { times.restRemaining(at: now) }
 
     convenience init(routine: Routine) {
         self.init(routineName: routine.name)
