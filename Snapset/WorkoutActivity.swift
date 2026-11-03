@@ -91,7 +91,7 @@ enum WorkoutActivity {
             detail = "All planned sets logged"
         }
         return .init(pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds, detail: detail,
-                     restEndsAt: session.restRemaining() == nil ? nil : session.restEndsAt)
+                     restEndsAt: session.restRemaining() == nil ? nil : session.restEndsAt, restSeconds: session.restSeconds)
     }
 }
 

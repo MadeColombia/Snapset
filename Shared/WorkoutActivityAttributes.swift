@@ -10,6 +10,7 @@ struct WorkoutActivityAttributes: ActivityAttributes {
         var pausedSeconds: Double = 0
         var detail: String       // e.g. "Set 2/3: 60 kg × 8 · Bench Press"
         var restEndsAt: Date?    // a rest between sets; while paused, what is left is restEndsAt minus pausedAt
+        var restSeconds: Double = 0  // the rest's full length, for the ring
 
         /// The rest still to go: running (counts down on its own until `end`), paused (frozen seconds), or none.
         enum Rest { case running(end: Date), paused(seconds: Int) }

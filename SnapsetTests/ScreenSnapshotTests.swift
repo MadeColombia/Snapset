@@ -85,6 +85,7 @@ struct ScreenSnapshotTests {
             ("set-confirm", { AnyView(SetConfirmView(exercise: press, targetKg: 50, targetReps: 8) { _, _ in }) }),
             ("set-edit", { AnyView(SetConfirmView(exercise: press, editing: session.sets.first { $0.exercise === press }, onDelete: {}) { _, _ in }) }),
             ("running-bar", { AnyView(VStack { Spacer(); RunningWorkoutBar(session: session) {} }.background(Color.snap.background)) }),
+            ("live-activity", { AnyView(liveActivities) }),
             ("routines", { AnyView(RoutineListView()) }),
             ("routine-editor", { AnyView(NavigationStack { RoutineEditorView(routine: routine) }) }),
             ("progress", { AnyView(HistoryView()) }),
@@ -105,6 +106,30 @@ struct ScreenSnapshotTests {
                 try data.write(to: dir.appending(path: "app-\(name)-\(variant).png"))
             }
         }
+    }
+
+    /// The Lock Screen Live Activity in its three phases, on a dark wallpaper-like backdrop.
+    /// The widget's logo lives in the widget's own assets, so a plain tile stands in for it here.
+    private var liveActivities: some View {
+        let detail = "Set 2/3: 47.5 kg × 12 · Chest Press"
+        let start = Date.now.addingTimeInterval(-1_520)
+        let states: [WorkoutActivityAttributes.ContentState] = [
+            .init(detail: detail),
+            .init(detail: detail, restEndsAt: .now.addingTimeInterval(72), restSeconds: 90),
+            .init(pausedAt: .now, detail: detail, restEndsAt: .now.addingTimeInterval(41), restSeconds: 90),
+            .init(pausedAt: .now, detail: detail),
+        ]
+        return VStack(spacing: 14) {
+            ForEach(Array(states.enumerated()), id: \.offset) { _, state in
+                WorkoutLockScreenView(routineName: "Upper and lower A", startedAt: start, state: state, isStale: false) {
+                    Color.snap.accent
+                }
+                .background(Color.snap.background, in: .rect(cornerRadius: 24, style: .continuous))
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(LinearGradient(colors: [.indigo, .black], startPoint: .top, endPoint: .bottom))
     }
 
     private func render(_ view: AnyView, style: UIUserInterfaceStyle) -> Data? {
