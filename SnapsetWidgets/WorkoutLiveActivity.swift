@@ -1,4 +1,5 @@
 import ActivityKit
+import AppIntents
 import SwiftUI
 import SnapsetUI
 import WidgetKit
@@ -16,16 +17,17 @@ struct WorkoutLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WorkoutActivityAttributes.self) { context in
             // Lock Screen and notification banner
-            WorkoutLockScreenView(routineName: context.attributes.routineName, startedAt: context.attributes.startedAt,
-                                  state: context.state, isStale: context.isStale) { Logo() }
+            WorkoutLockScreenView(routineName: context.attributes.routineName, state: context.state, isStale: context.isStale) { Logo() }
                 .activityBackgroundTint(Color.snap.background)
                 .activitySystemActionForegroundColor(Color.snap.textPrimary)
         } dynamicIsland: { context in
             let phase = context.state.phase(isStale: context.isStale)
+            // Expanded: badge and next set on the left, phase and clock on the right, one row of icon buttons below.
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    WorkoutBadge(state: context.state, isStale: context.isStale, size: 52) { Logo() }
-                        .padding(.leading, 4)
+                    WorkoutBadge(state: context.state, isStale: context.isStale, size: 48) { Logo() }
+                        .padding(.leading, 6)
+                        .padding(.top, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 0) {
@@ -33,29 +35,36 @@ struct WorkoutLiveActivity: Widget {
                             .font(.caption2.weight(.bold))
                             .tracking(0.8)
                             .foregroundStyle(phase.color)
-                        WorkoutClock(startedAt: context.attributes.startedAt, state: context.state, isStale: context.isStale)
-                            .font(.system(size: 38, weight: .semibold, design: .rounded))
+                        WorkoutClock(state: context.state, isStale: context.isStale)
+                            .font(.system(size: 36, weight: .semibold, design: .rounded))
                             .minimumScaleFactor(0.6)
                             .multilineTextAlignment(.trailing)
-                            .frame(maxWidth: 150, alignment: .trailing)
+                            .frame(maxWidth: 140, alignment: .trailing)
                     }
-                    .padding(.trailing, 4)
+                    .padding(.trailing, 6)
                 }
-                DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 12) {
-                        Text(context.state.detail)
+                DynamicIslandExpandedRegion(.center) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(context.state.exercise.isEmpty ? context.attributes.routineName : context.state.exercise)
+                            .font(.headline)
+                            .foregroundStyle(Color.snap.textPrimary)
+                        Text(context.state.setLine)
                             .font(.footnote.weight(.medium))
                             .foregroundStyle(Color.snap.textSecondary)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Controls(state: context.state)
                     }
-                    .padding(.horizontal, 4)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    Controls(state: context.state)
+                        .padding(.horizontal, 6)
+                        .padding(.top, 8)
                 }
             } compactLeading: {
                 CompactIcon(phase: phase)
             } compactTrailing: {
-                WorkoutClock(startedAt: context.attributes.startedAt, state: context.state, isStale: context.isStale)
+                WorkoutClock(state: context.state, isStale: context.isStale)
                     .font(.system(.subheadline, design: .rounded, weight: .semibold))
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: 64, alignment: .trailing)  // a timer Text otherwise claims all the width it can
@@ -80,34 +89,32 @@ private struct CompactIcon: View {
     }
 }
 
-/// Pause or Resume, log the next set, finish, in the Workout screen's action colours. They run in the app, which then
-/// updates the activity; Log set opens the app on the set confirm sheet rather than saving anything from here.
-/// One orange button at a time: Log set, or Resume while paused.
+/// Pause or Resume, log the next set, finish: icon only, in the Workout screen's action colours, one orange at a time
+/// (Log set, or Resume while paused). They run in the app, which then updates the activity; Log set opens the app.
 private struct Controls: View {
     let state: WorkoutActivityAttributes.ContentState
 
     var body: some View {
         let paused = state.pausedAt != nil
-        HStack(spacing: 8) {
-            Button(intent: WorkoutButtonIntent(.pause)) {
-                Label(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill").frame(maxWidth: .infinity)
-            }
-            .tint(paused ? Color.snap.actionResume : Color.snap.actionPause)
-            Button(intent: LogSetIntent()) {
-                Label("Log set", systemImage: "plus").frame(maxWidth: .infinity)
-            }
-            .tint(paused ? Color.snap.textPrimary : Color.snap.accent)
-            Button(intent: WorkoutButtonIntent(.finish)) {
-                Label("Finish", systemImage: "checkmark").frame(maxWidth: .infinity)
-            }
-            .tint(Color.snap.actionFinish)
+        HStack(spacing: 10) {
+            button(intent: WorkoutButtonIntent(.pause), symbol: paused ? "play.fill" : "pause.fill",
+                   label: paused ? "Resume" : "Pause", tint: paused ? Color.snap.actionResume : Color.snap.actionPause)
+            button(intent: LogSetIntent(), symbol: "plus", label: "Log set",
+                   tint: paused ? Color.snap.textPrimary : Color.snap.accent)
+            button(intent: WorkoutButtonIntent(.finish), symbol: "checkmark", label: "Finish", tint: Color.snap.actionFinish)
         }
-        .font(.subheadline.weight(.semibold))
+    }
+
+    private func button(intent: some AppIntent, symbol: String, label: String, tint: Color) -> some View {
+        Button(intent: intent) {
+            Image(systemName: symbol)
+                .font(.title3.weight(.bold))
+                .frame(maxWidth: .infinity, minHeight: 30)
+        }
+        .tint(tint)
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
-        .controlSize(.large)
-        .lineLimit(1)
-        .labelStyle(.titleAndIcon)
+        .accessibilityLabel(label)
     }
 }
 
@@ -126,10 +133,15 @@ private extension WorkoutActivityAttributes {
 }
 
 private extension WorkoutActivityAttributes.ContentState {
-    static let training = Self(detail: "Set 2/3: 47.5 kg × 12 · Chest Press")
-    static let resting = Self(detail: "Set 2/3: 47.5 kg × 12 · Chest Press", restEndsAt: .now.addingTimeInterval(72), restSeconds: 90)
-    static let paused = Self(pausedAt: .now, detail: "Set 2/3: 47.5 kg × 12 · Chest Press",
-                             restEndsAt: .now.addingTimeInterval(41), restSeconds: 90)
+    static let start = Date.now.addingTimeInterval(-1_520)
+    static let training = Self(times: WorkoutTimes(startedAt: start), exercise: "Chest Press",
+                               setLine: "Set 2/4 · 47.5 kg × 12", detail: "")
+    static let resting = Self(times: WorkoutTimes(startedAt: start, holdSince: .now.addingTimeInterval(-18),
+                                                  restEndsAt: .now.addingTimeInterval(72), restSeconds: 90),
+                              exercise: "Chest Press", setLine: "Set 2/4 · 47.5 kg × 12", detail: "")
+    static let paused = Self(times: WorkoutTimes(startedAt: start, holdSince: .now.addingTimeInterval(-49), pausedAt: .now,
+                                                 restEndsAt: .now.addingTimeInterval(41), restSeconds: 90),
+                             exercise: "Chest Press", setLine: "Set 2/4 · 47.5 kg × 12", detail: "")
 }
 
 #Preview("Lock Screen", as: .content, using: WorkoutActivityAttributes.preview) {

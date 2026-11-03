@@ -169,6 +169,7 @@ struct SessionView: View {
     @State private var targets: [String: Progression.Target] = [:]
     @State private var chosen: Int?  // a step the lifter tapped; nil follows the plan
     @State private var toast: Toast?
+    @State private var pausedLog: Exercise?  // Log set tapped while paused: ask before the clock runs again
 
     init(session: WorkoutSession, onFinish: @escaping (_ goingUp: [String], _ best: String?) -> Void) {
         self.session = session
@@ -243,9 +244,10 @@ struct SessionView: View {
         .task(id: session.restEndsAt) {
             guard let restEnds = session.restEndsAt else { return }
             try? await Task.sleep(for: .seconds(max(0, restEnds.timeIntervalSinceNow)))
-            // A pause holds the rest; resuming moves its end (WorkoutSession.togglePause) and restarts this task.
+            // The rest ran out: fold it into the stopped time so the workout clock runs again.
+            // A pause holds the rest; resuming moves its end (WorkoutTimes.togglePause) and restarts this task.
             if !Task.isCancelled, session.pausedAt == nil {
-                session.endRest()
+                session.settleRest()
                 try? context.save()
             }
         }
@@ -257,6 +259,17 @@ struct SessionView: View {
         } message: {
             Text(session.sets.isEmpty ? "No sets were logged, so nothing will be saved."
                                       : "\(session.sets.count) sets will be saved to your history.")
+        }
+        .alert("Your workout is paused", isPresented: Binding(get: { pausedLog != nil }, set: { if !$0 { pausedLog = nil } }),
+               presenting: pausedLog) { exercise in
+            Button("Cancel", role: .cancel) {}
+            Button("Add set") {
+                session.togglePause()
+                try? context.save()
+                sheet = .log(exercise)
+            }
+        } message: { _ in
+            Text("Adding a set starts the workout clock again. Cancel keeps it paused.")
         }
         .sheet(item: $sheet) { sheet in
             switch sheet {
@@ -280,7 +293,7 @@ struct SessionView: View {
             guard open else { return }
             openLogSet = false
             let byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            if let index = chosen ?? upNext, let exercise = byID[session.plan[index].exerciseID] { sheet = .log(exercise) }
+            if let index = chosen ?? upNext, let exercise = byID[session.plan[index].exerciseID] { requestLog(exercise) }
         }
         // Keeps the Dynamic Island's next set and pause state in step with this screen.
         .task(id: "\(session.sets.count)-\(String(describing: session.pausedAt))-\(String(describing: session.restEndsAt))-\(goal.rawValue)-\(unit.rawValue)") {
@@ -295,9 +308,11 @@ struct SessionView: View {
         VStack(spacing: Snap.Spacing.m) {
             VStack(spacing: Snap.Spacing.xs) {
                 // The workout clock is the screen's main number. Paused, it turns the resume colour; the Resume button says the word.
-                ElapsedTime(startedAt: session.startedAt, pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds)
+                // It stands still during a rest (shown grey, the rest timer below is green) and during a pause (orange).
+                ElapsedTime(times: session.times)
                     .snapText(.heroNumber)
-                    .foregroundStyle(session.pausedAt == nil ? Color.snap.textPrimary : Color.snap.actionResume)
+                    .foregroundStyle(session.pausedAt != nil ? Color.snap.actionResume
+                                     : session.restEndsAt != nil ? Color.snap.textSecondary : Color.snap.textPrimary)
                     .contentTransition(.numericText())
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
@@ -335,7 +350,7 @@ struct SessionView: View {
             if session.restEndsAt != nil {
                 // Between sets the step goes quiet: the countdown and what comes next.
                 // Ticks on the workout clock's seconds, so the two numbers change together.
-                TimelineView(.periodic(from: session.clockStart, by: 1)) { timeline in
+                TimelineView(.periodic(from: session.times.tickStart, by: 1)) { timeline in
                     RestTimer(remaining: (session.restRemaining(at: timeline.date) ?? 0).rounded(), total: session.restSeconds,
                               paused: session.pausedAt != nil, next: nextLine) {
                         session.endRest()
@@ -355,9 +370,9 @@ struct SessionView: View {
                 setRows(logged)
                 // Only the step with sets still to do gets the orange button; while paused, Resume has it.
                 if done {
-                    SecondaryButton("Log another set", systemImage: "plus") { sheet = .log(exercise) }
+                    SecondaryButton("Log another set", systemImage: "plus") { requestLog(exercise) }
                 } else {
-                    PrimaryButton("Log set", style: session.pausedAt == nil ? .accent : .neutral) { sheet = .log(exercise) }
+                    PrimaryButton("Log set", style: session.pausedAt == nil ? .accent : .neutral) { requestLog(exercise) }
                 }
             }
         }
@@ -430,6 +445,11 @@ struct SessionView: View {
         session.sets.filter { $0.exercise?.id == exercise.id }.sorted { $0.loggedAt < $1.loggedAt }
     }
 
+    /// Opens Set confirm, or first asks to resume when the workout is paused.
+    private func requestLog(_ exercise: Exercise) {
+        if session.pausedAt != nil { pausedLog = exercise } else { sheet = .log(exercise) }
+    }
+
     private func log(_ exercise: Exercise, weightKg: Double, reps: Int) {
         let entry = SetEntry(exercise: exercise, weightKg: weightKg, reps: reps)
         session.sets.append(entry)
@@ -444,8 +464,8 @@ struct SessionView: View {
         if let index = chosen, sets(of: exercise).count >= session.plan[index].targetSets { chosen = nil }
         // Also resumes a paused workout: logging a set means training again.
         if upNext == nil {
-            session.endRest()
             if session.pausedAt != nil { session.togglePause() }
+            session.endRest()
         } else {
             session.startRest(Double(goal.restSeconds))
         }

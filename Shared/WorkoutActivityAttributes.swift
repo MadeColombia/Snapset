@@ -6,23 +6,12 @@ import Foundation
 /// Shared by the app (which starts and updates it) and the widget extension (which draws it).
 struct WorkoutActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
-        var pausedAt: Date?
-        var pausedSeconds: Double = 0
-        var detail: String       // e.g. "Set 2/3: 60 kg × 8 · Bench Press"
-        var restEndsAt: Date?    // a rest between sets; while paused, what is left is restEndsAt minus pausedAt
-        var restSeconds: Double = 0  // the rest's full length, for the ring
+        var times: WorkoutTimes
+        var exercise: String     // e.g. "Chest Press"; empty when every planned set is logged
+        var setLine: String      // e.g. "Set 2/4 · 60 kg × 8", or "All planned sets logged"
+        var detail: String       // the two above in one line, for notifications
 
-        /// The rest still to go: running (counts down on its own until `end`), paused (frozen seconds), or none.
-        enum Rest { case running(end: Date), paused(seconds: Int) }
-
-        func rest(at now: Date = .now) -> Rest? {
-            guard let restEndsAt else { return nil }
-            if let pausedAt {
-                let left = restEndsAt.timeIntervalSince(pausedAt)
-                return left > 0 ? .paused(seconds: Int(left.rounded())) : nil
-            }
-            return restEndsAt > now ? .running(end: restEndsAt) : nil
-        }
+        var pausedAt: Date? { times.pausedAt }
     }
 
     var routineName: String

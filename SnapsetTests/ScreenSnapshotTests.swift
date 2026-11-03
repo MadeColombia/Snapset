@@ -68,6 +68,7 @@ struct ScreenSnapshotTests {
         let workout = { (legSets: Int, pressSets: Int, resting: Bool, paused: Bool) -> AnyView in
             session.pausedAt = paused ? .now : nil
             session.restEndsAt = resting ? .now.addingTimeInterval(75) : nil
+            session.holdSince = resting || paused ? .now.addingTimeInterval(-15) : nil
             session.restSeconds = 90
             session.sets.forEach(context.delete)
             session.sets = (0..<legSets).map { SetEntry(exercise: legs, weightKg: 100, reps: 12, loggedAt: .now.addingTimeInterval(Double($0 - 4) * 150)) }
@@ -111,17 +112,20 @@ struct ScreenSnapshotTests {
     /// The Lock Screen Live Activity in its three phases, on a dark wallpaper-like backdrop.
     /// The widget's logo lives in the widget's own assets, so a plain tile stands in for it here.
     private var liveActivities: some View {
-        let detail = "Set 2/3: 47.5 kg × 12 · Chest Press"
+        let line = "Set 2/4 · 47.5 kg × 12"
         let start = Date.now.addingTimeInterval(-1_520)
         let states: [WorkoutActivityAttributes.ContentState] = [
-            .init(detail: detail),
-            .init(detail: detail, restEndsAt: .now.addingTimeInterval(72), restSeconds: 90),
-            .init(pausedAt: .now, detail: detail, restEndsAt: .now.addingTimeInterval(41), restSeconds: 90),
-            .init(pausedAt: .now, detail: detail),
+            .init(times: WorkoutTimes(startedAt: start), exercise: "Chest Press", setLine: line, detail: ""),
+            .init(times: WorkoutTimes(startedAt: start, holdSince: .now.addingTimeInterval(-18), restEndsAt: .now.addingTimeInterval(72), restSeconds: 90),
+                  exercise: "Chest Press", setLine: line, detail: ""),
+            .init(times: WorkoutTimes(startedAt: start, holdSince: .now.addingTimeInterval(-49), pausedAt: .now,
+                                      restEndsAt: .now.addingTimeInterval(41), restSeconds: 90),
+                  exercise: "Chest Press", setLine: line, detail: ""),
+            .init(times: WorkoutTimes(startedAt: start, holdSince: .now, pausedAt: .now), exercise: "Chest Press", setLine: line, detail: ""),
         ]
         return VStack(spacing: 14) {
             ForEach(Array(states.enumerated()), id: \.offset) { _, state in
-                WorkoutLockScreenView(routineName: "Upper and lower A", startedAt: start, state: state, isStale: false) {
+                WorkoutLockScreenView(routineName: "Upper and lower A", state: state, isStale: false) {
                     Color.snap.accent
                 }
                 .background(Color.snap.background, in: .rect(cornerRadius: 24, style: .continuous))

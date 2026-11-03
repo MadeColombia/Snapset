@@ -75,8 +75,79 @@ struct WorkoutControlsTests {
         let session = WorkoutSession(startedAt: start)
         session.startRest(90, at: start.addingTimeInterval(12.4))
         let end = try #require(session.restEndsAt)
-        #expect(end.timeIntervalSince(session.clockStart) == 103)
+        #expect(end.timeIntervalSince(session.startedAt) == 103)
         #expect(session.restSeconds == 91)  // 90.6, shown as a whole second
+    }
+
+    // MARK: Two clocks: the workout clock stands still while resting, and picks up when the rest runs out.
+
+    @Test func theWorkoutClockStandsStillDuringARestAndRunsAgainAfter() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        var times = WorkoutTimes(startedAt: start)
+        times.startRest(90, at: start.addingTimeInterval(60))
+        #expect(times.phase(at: start.addingTimeInterval(61)) == .resting)
+        #expect(times.elapsed(at: start.addingTimeInterval(61)) == 60)
+        #expect(times.elapsed(at: start.addingTimeInterval(149)) == 60)
+        // No update needed at the rest's end: the clock picks up from 60 on its own.
+        #expect(times.phase(at: start.addingTimeInterval(150)) == .training)
+        #expect(times.elapsed(at: start.addingTimeInterval(160)) == 70)
+        #expect(times.runningSince(at: start.addingTimeInterval(160)) == start.addingTimeInterval(90))
+        // Settling later changes nothing on screen.
+        times.settle(at: start.addingTimeInterval(500))
+        #expect(times.elapsed(at: start.addingTimeInterval(160)) == 70)
+        #expect(times.stoppedSeconds == 90)
+    }
+
+    @Test func pausingDuringARestFreezesBothClocks() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        var times = WorkoutTimes(startedAt: start)
+        times.startRest(90, at: start.addingTimeInterval(60))
+        times.togglePause(at: start.addingTimeInterval(80))  // 70 s of rest left
+        #expect(times.elapsed(at: start.addingTimeInterval(500)) == 60)
+        #expect(times.restRemaining(at: start.addingTimeInterval(500)) == 70)
+        times.togglePause(at: start.addingTimeInterval(200))  // resting again, 70 s left
+        #expect(times.phase(at: start.addingTimeInterval(200)) == .resting)
+        #expect(times.elapsed(at: start.addingTimeInterval(269)) == 60)
+        // Rest over at 270: the clock carries on from 60.
+        #expect(times.elapsed(at: start.addingTimeInterval(280)) == 70)
+    }
+
+    @Test func skippingTheRestStartsTheClockAtOnce() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        var times = WorkoutTimes(startedAt: start)
+        times.startRest(90, at: start.addingTimeInterval(60))
+        times.endRest(at: start.addingTimeInterval(75))
+        #expect(times.phase(at: start.addingTimeInterval(75)) == .training)
+        #expect(times.elapsed(at: start.addingTimeInterval(85)) == 70)
+    }
+
+    @Test func aPauseInTrainingFreezesTheClockAndResumeCarriesOn() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        var times = WorkoutTimes(startedAt: start)
+        times.togglePause(at: start.addingTimeInterval(30))
+        #expect(times.elapsed(at: start.addingTimeInterval(300)) == 30)
+        times.togglePause(at: start.addingTimeInterval(300))
+        #expect(times.elapsed(at: start.addingTimeInterval(310)) == 40)
+    }
+
+    /// Both numbers change on the same instant: the rest's whole seconds line up with the workout clock's.
+    @Test func theRestAndTheClockTickTogether() throws {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        var times = WorkoutTimes(startedAt: start)
+        times.startRest(90, at: start.addingTimeInterval(41.7))
+        let end = try #require(times.restEndsAt)
+        let resumed = try #require(times.runningSince(at: end))
+        #expect(end.timeIntervalSince(resumed).truncatingRemainder(dividingBy: 1) == 0)
+        #expect(times.elapsed(at: end) == 41)  // the second it showed when the rest began
+    }
+
+    @Test func aSessionPausedBeforeHoldSinceExistedStillResumes() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let session = WorkoutSession(startedAt: start)
+        session.pausedAt = start.addingTimeInterval(30)  // as stored by the previous version
+        session.togglePause(at: start.addingTimeInterval(90))
+        #expect(session.pausedSeconds == 60)
+        #expect(session.holdSince == nil)
     }
 
     @Test func nextSetMovesOnOnceAnExerciseHasItsSetsAndRepeatsTheLastSet() throws {

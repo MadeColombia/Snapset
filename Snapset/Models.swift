@@ -80,7 +80,8 @@ final class WorkoutSession {
     var routineName: String?
     var plan: [PlannedExercise] = []
     var pausedAt: Date?
-    var pausedSeconds: Double = 0  // finished pauses, left out of the workout time
+    var pausedSeconds: Double = 0  // closed pauses and rests, left out of the workout time (WorkoutTimes.stoppedSeconds)
+    var holdSince: Date?  // the workout clock has stood still since then, for a rest or a pause
     // The rest between sets lives here, not in a screen, so the Live Activity, the mini bar and a relaunched app all see it.
     var restEndsAt: Date?
     var restSeconds: Double = 0  // the rest's full length, for the ring
@@ -103,47 +104,28 @@ final class WorkoutSession {
         return (max(startedAt, first - pad), min(end, last + pad))
     }
 
-    func togglePause(at now: Date = .now) {
-        if let pausedAt {
-            let paused = now.timeIntervalSince(pausedAt)
-            pausedSeconds += paused
-            self.pausedAt = nil
-            // A pause holds the rest too: what was left when it started is still left. A rest that had already run out ends here.
-            if let restEndsAt { self.restEndsAt = restEndsAt > pausedAt ? restEndsAt.addingTimeInterval(paused) : nil }
-        } else {
-            pausedAt = now
+    /// Both clocks as plain values; the rules live in WorkoutTimes (Shared), so the widget reads them the same way.
+    var times: WorkoutTimes {
+        get {
+            // A workout paused before holdSince existed stood still from its pause.
+            WorkoutTimes(startedAt: startedAt, stoppedSeconds: pausedSeconds, holdSince: holdSince ?? pausedAt,
+                         pausedAt: pausedAt, restEndsAt: restEndsAt, restSeconds: restSeconds)
+        }
+        set {
+            pausedSeconds = newValue.stoppedSeconds
+            holdSince = newValue.holdSince
+            pausedAt = newValue.pausedAt
+            restEndsAt = newValue.restEndsAt
+            restSeconds = newValue.restSeconds
         }
     }
 
-    /// When the workout clock reads 0:00, pauses left out. The rest is lined up with it, so both timers tick together.
-    var clockStart: Date { startedAt.addingTimeInterval(pausedSeconds) }
-
-    /// Starts a rest of `seconds`. Logging a set means training again, so a paused workout resumes first;
-    /// otherwise the resume would add the whole pause to a rest that only started now.
-    func startRest(_ seconds: Double, at now: Date = .now) {
-        if pausedAt != nil { togglePause(at: now) }
-        // Rounded up to a whole second of the workout clock, so the rest and the clock change digits at the same moment.
-        let end = clockStart.addingTimeInterval((now.timeIntervalSince(clockStart) + seconds).rounded(.up))
-        restEndsAt = end
-        restSeconds = end.timeIntervalSince(now).rounded()
-    }
-
-    /// Seconds of rest left, frozen while paused; nil when no rest is running.
-    func restRemaining(at now: Date = .now) -> TimeInterval? {
-        guard let restEndsAt else { return nil }
-        let left = restEndsAt.timeIntervalSince(pausedAt ?? now)
-        return left > 0 ? left : nil
-    }
-
-    func addRest(_ seconds: Double, at now: Date = .now) {
-        guard let restEndsAt else { return }
-        self.restEndsAt = restEndsAt.addingTimeInterval(seconds)
-        restSeconds = max(restSeconds, (restRemaining(at: now) ?? 0).rounded())
-    }
-
-    func endRest() {
-        restEndsAt = nil
-    }
+    func togglePause(at now: Date = .now) { times.togglePause(at: now) }
+    func startRest(_ seconds: Double, at now: Date = .now) { times.startRest(seconds, at: now) }
+    func addRest(_ seconds: Double, at now: Date = .now) { times.addRest(seconds, at: now) }
+    func endRest(at now: Date = .now) { times.endRest(at: now) }
+    func settleRest(at now: Date = .now) { times.settle(at: now) }
+    func restRemaining(at now: Date = .now) -> TimeInterval? { times.restRemaining(at: now) }
 
     convenience init(routine: Routine) {
         self.init(routineName: routine.name)

@@ -17,7 +17,7 @@ struct RunningWorkoutBar: View {
                         .foregroundStyle(paused ? Color.snap.textSecondary : Color.snap.textPrimary)
                         .symbolEffect(.pulse, isActive: !paused)
                     // Ticks on the workout clock's seconds, so the rest ends exactly when the bar flips back to the workout time.
-                    TimelineView(.periodic(from: session.clockStart, by: 1)) { timeline in
+                    TimelineView(.periodic(from: session.times.tickStart, by: 1)) { timeline in
                         let rest = session.restRemaining(at: timeline.date)
                         HStack(spacing: 10) {
                             Text(rest == nil ? session.routineName ?? "Workout" : "Rest").lineLimit(1).foregroundStyle(Color.snap.textPrimary)
@@ -27,11 +27,11 @@ struct RunningWorkoutBar: View {
                                     Text(Duration.seconds(rest.rounded()), format: .time(pattern: .minuteSecond))
                                         .accessibilityLabel("Rest left")
                                 } else {
-                                    ElapsedTime(startedAt: session.startedAt, pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds)
+                                    ElapsedTime(times: session.times)
                                 }
                             }
                             .monospacedDigit()
-                            .foregroundStyle(paused ? Color.snap.textSecondary : Color.snap.textPrimary)
+                            .foregroundStyle(session.times.phase(at: timeline.date).color)
                             .fixedSize()  // a timer Text otherwise claims all the width it can
                         }
                     }
