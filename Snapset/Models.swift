@@ -85,6 +85,7 @@ final class WorkoutSession {
     // The rest between sets lives here, not in a screen, so the Live Activity, the mini bar and a relaunched app all see it.
     var restEndsAt: Date?
     var restSeconds: Double = 0  // the rest's full length, for the ring
+    var effort: Int?  // how hard it felt, 1 to 10 as in the Fitness app, picked on the overview
     @Relationship(deleteRule: .cascade, inverse: \SetEntry.session) var sets: [SetEntry] = []
 
     static let isActive = #Predicate<WorkoutSession> { $0.finishedAt == nil }

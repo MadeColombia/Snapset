@@ -86,4 +86,27 @@ struct WorkoutSummaryTests {
         #expect(summary.setTimes.count == 4)
     }
 
+    @Test func restIsTheGapBetweenSetsOfOneExerciseJudgedAgainstThePlan() throws {
+        let session = today()  // press sets 100 s apart; row and curl have one set each
+        #expect(WorkoutSummary(session: session, nextKg: [:], targetRestSeconds: 90, in: context).restGaps == [100])
+        #expect(WorkoutSummary(session: session, nextKg: [:], targetRestSeconds: 90, in: context).restVerdict == .onPoint)
+        #expect(WorkoutSummary(session: session, nextKg: [:], targetRestSeconds: 60, in: context).restVerdict == .long)
+        #expect(WorkoutSummary(session: session, nextKg: [:], targetRestSeconds: 180, in: context).restVerdict == .short)
+    }
+
+    @Test func theHighlightIsTheBiggestUpgrade() throws {
+        lastWeek()
+        let summary = WorkoutSummary(session: today(), nextKg: ["row": 45], in: context)
+        #expect(summary.highlight.title == "Chest Press got the upgrade!")
+    }
+
+    @Test func withoutABestTheHighlightIsWhatGoesUp() throws {
+        let summary = WorkoutSummary(session: today(), nextKg: ["row": 45], in: context)  // no history: no bests
+        #expect(summary.highlight.title == "Seated Row goes up next time")
+    }
+
+    @Test func calorieEstimateUsesBodyWeightOrSeventyKilos() {
+        #expect(Health.estimatedKcal(activeSeconds: 3_600, bodyKg: 80) == 200)
+        #expect(Health.estimatedKcal(activeSeconds: 3_600, bodyKg: nil) == 175)
+    }
 }

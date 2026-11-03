@@ -26,6 +26,8 @@ struct WorkoutSummary: Identifiable {
     }
 
     let id = UUID()
+    /// The finished session, to store the effort picked on the overview; nil in previews.
+    var sessionID: PersistentIdentifier?
     let routineName: String?
     let startedAt: Date
     let finishedAt: Date
@@ -35,19 +37,70 @@ struct WorkoutSummary: Identifiable {
     let exercises: [ExerciseResult]
     /// Where Health looks for heart rate: the sets plus a little warm-up and cool-down, never a whole forgotten night.
     let heartRateWindow: ClosedRange<Date>
+    /// The rest the goal asks for between sets.
+    var targetRestSeconds: TimeInterval = 90
 
     var setsLogged: Int { exercises.reduce(0) { $0 + $1.sets.count } }
     var newBests: [ExerciseResult] { exercises.filter(\.isNewBest) }
     var goingUp: [ExerciseResult] { exercises.filter { $0.nextKg != nil } }
     /// Set times, marked on the heart rate chart.
     var setTimes: [Date] { exercises.flatMap { $0.sets.map(\.loggedAt) }.sorted() }
+
+    // MARK: Rest
+
+    /// Gaps between back-to-back sets of the same exercise: the real rests. Over 15 minutes is a break, not a rest.
+    var restGaps: [TimeInterval] {
+        exercises.flatMap { result in
+            zip(result.sets, result.sets.dropFirst()).map { $1.loggedAt.timeIntervalSince($0.loggedAt) }
+        }
+        .filter { $0 > 0 && $0 <= 15 * 60 }
+    }
+
+    var averageRest: TimeInterval? {
+        let gaps = restGaps
+        return gaps.isEmpty ? nil : gaps.reduce(0, +) / Double(gaps.count)
+    }
+
+    enum RestVerdict: Equatable { case short, onPoint, long }
+
+    /// Within 25% under to 50% over the goal's rest is on point; resting long is more common, so it gets more room.
+    var restVerdict: RestVerdict? {
+        guard let average = averageRest else { return nil }
+        if average < targetRestSeconds * 0.75 { return .short }
+        if average > targetRestSeconds * 1.5 { return .long }
+        return .onPoint
+    }
+
+    // MARK: Highlight
+
+    /// The one thing worth shouting about, best first: the biggest new best, a weight going up, every set done.
+    var highlight: (title: String, detail: String) {
+        let gain = { (result: ExerciseResult) in result.topKg - (result.lastTopKg ?? result.topKg) }
+        if let best = newBests.max(by: { gain($0) < gain($1) }) {
+            let detail = gain(best) > 0 ? "Top set up \(Self.kg(gain(best))) on last time." : "Heavier than ever."
+            return ("\(best.name) got the upgrade!", detail)
+        }
+        if let up = goingUp.first, let next = up.nextKg {
+            return ("\(up.name) goes up next time", "You earned \(Self.kg(next)). Nice work.")
+        }
+        if setsPlanned > 0, setsLogged >= setsPlanned {
+            return ("Every set, done", "All \(setsPlanned) planned sets logged.")
+        }
+        return ("Showing up is the win", "Same weights next time. Try for one more rep.")
+    }
+
+    private static func kg(_ value: Double) -> String {
+        UserDefaults.standard.string(forKey: "weightUnit").flatMap(WeightUnit.init(rawValue:)).map { $0.format(kg: value) }
+            ?? WeightUnit.kg.format(kg: value)
+    }
 }
 
 extension WorkoutSummary {
     /// Builds the overview from a session. `nextKg` holds next session's weight for exercises going up.
     /// Exercises follow the plan, then any extra ones in the order they were first logged.
     @MainActor
-    init(session: WorkoutSession, nextKg: [String: Double], in context: ModelContext, finishedAt: Date = .now) {
+    init(session: WorkoutSession, nextKg: [String: Double], targetRestSeconds: TimeInterval = 90,
+         in context: ModelContext, finishedAt: Date = .now) {
         let sets = session.sets.sorted { $0.loggedAt < $1.loggedAt }
         var order = session.plan.map(\.exerciseID)
         for id in sets.compactMap(\.exercise?.id) where !order.contains(id) { order.append(id) }
@@ -74,5 +127,7 @@ extension WorkoutSummary {
         setsPlanned = session.plan.reduce(0) { $0 + $1.targetSets }
         let window = session.activeWindow
         heartRateWindow = window.start...max(window.start, window.end)
+        self.targetRestSeconds = targetRestSeconds
+        sessionID = session.persistentModelID
     }
 }

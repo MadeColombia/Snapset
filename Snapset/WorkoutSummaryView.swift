@@ -2,16 +2,22 @@ import Charts
 import SwiftUI
 import SnapsetUI
 
-/// The overview after Finish: the headline numbers, heart rate from Apple Health when there is any,
-/// today's top weights against last time, new bests and what goes up next time.
+/// The overview after Finish: the workout's highlight, time, calories, rest and heart rate,
+/// how hard it felt, today's top weights against last time, and what goes up next time.
 struct WorkoutSummaryView: View {
     let summary: WorkoutSummary
     /// Readings to show without asking Health, for previews and snapshots; nil loads them.
     var heartRate: [HeartRatePoint]?
+    /// Calories to show without asking Health, for previews and snapshots; nil loads them.
+    var energy: Health.Energy?
+    /// How hard it felt, 1 to 10, when the lifter picks it.
+    var onEffort: (Int) -> Void = { _ in }
     let onDone: () -> Void
 
     @AppStorage("weightUnit") private var unit: WeightUnit = .kg
     @State private var loaded: [HeartRatePoint]?
+    @State private var loadedEnergy: Health.Energy?
+    @State private var effort: Int?
     @State private var cheered = false
 
     private var readings: [HeartRatePoint]? { heartRate ?? loaded }
@@ -20,10 +26,13 @@ struct WorkoutSummaryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Snap.Spacing.l) {
                 header
+                highlightCard
                 stats
+                effortCard
                 heartRateCard
+                restCard
                 comparisonCard
-                if !summary.newBests.isEmpty { newBestsCard }
+                if summary.newBests.count > 1 { newBestsCard }  // one best is already the highlight
                 nextTimeCard
                 exercisesCard
             }
@@ -35,6 +44,11 @@ struct WorkoutSummaryView: View {
                 .padding(.horizontal, Snap.Spacing.l)
                 .padding(.vertical, Snap.Spacing.s)
                 .background(Color.snap.background)
+        }
+        .task {
+            guard energy == nil else { return }
+            let window = summary.heartRateWindow
+            loadedEnergy = await Health.energy(from: window.lowerBound, to: window.upperBound, activeSeconds: summary.activeSeconds)
         }
         .task {
             guard heartRate == nil else { return }
@@ -63,36 +77,142 @@ struct WorkoutSummaryView: View {
             Text([summary.routineName, summary.finishedAt.formatted(.dateTime.weekday(.wide).day().month())]
                 .compactMap { $0 }.joined(separator: " · "))
                 .snapText(.secondary)
-            Text(headline).snapText(.body).foregroundStyle(Color.snap.textPrimary).padding(.top, Snap.Spacing.s)
         }
     }
 
-    /// The spotter's one line about the session.
-    private var headline: String {
-        if let best = summary.newBests.first {
-            let others = summary.newBests.count - 1
-            return "You lifted more than ever on \(best.name.lowercased())" + (others > 0 ? " and \(others) more." : ".")
+    /// The workout's one cheer: the biggest upgrade, else what goes up, else the effort itself.
+    private var highlightCard: some View {
+        let highlight = summary.highlight
+        return HStack(alignment: .top, spacing: Snap.Spacing.m) {
+            Image(systemName: summary.newBests.isEmpty ? "arrow.up.circle.fill" : "trophy.fill")
+                .font(.title)
+                .foregroundStyle(Color.snap.statusUp)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
+                Text(highlight.title).snapText(.sectionTitle).foregroundStyle(Color.snap.textPrimary)
+                Text(highlight.detail).snapText(.secondary)
+            }
+            Spacer(minLength: 0)
         }
-        if !summary.goingUp.isEmpty {
-            let count = summary.goingUp.count
-            return "You earned heavier weights next time on \(count) \(count == 1 ? "exercise" : "exercises")."
-        }
-        return "Solid work. Same weights next time, try for one more rep."
+        .padding(Snap.Spacing.l)
+        .background(Color.snap.surface, in: .rect(cornerRadius: Snap.Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Snap.Radius.card).stroke(Color.snap.statusUp.opacity(0.6)))
+        .accessibilityElement(children: .combine)
     }
+
+    private var currentEnergy: Health.Energy? { energy ?? loadedEnergy }
 
     private var stats: some View {
         let columns = [GridItem(.adaptive(minimum: 150), spacing: Snap.Spacing.s)]
         return LazyVGrid(columns: columns, spacing: Snap.Spacing.s) {
             StatTile(value: Duration.seconds(summary.activeSeconds).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)),
                      label: "Workout time", symbol: "stopwatch")
-            StatTile(value: summary.setsPlanned > 0 ? "\(summary.setsLogged) of \(summary.setsPlanned)" : "\(summary.setsLogged)",
-                     label: "Sets", symbol: "square.stack.3d.up")
-            StatTile(value: "\(summary.exercises.count)", label: summary.exercises.count == 1 ? "Exercise" : "Exercises", symbol: "dumbbell")
+            StatTile(value: currentEnergy.map { "\(Int($0.kcal.rounded())) kcal" } ?? "…",
+                     label: currentEnergy?.measured == false ? "Active calories (estimate)" : "Active calories", symbol: "flame")
+            StatTile(value: summary.averageRest.map(Self.clock) ?? "–", label: restLabel, symbol: "timer")
             if let stats = heartRateStats {
                 StatTile(value: "\(Int(stats.average.rounded())) bpm", label: "Average heart rate", symbol: "heart")
             } else {
                 StatTile(value: "\(summary.newBests.count)", label: summary.newBests.count == 1 ? "New best" : "New bests", symbol: "trophy")
             }
+        }
+    }
+
+    private var restLabel: String {
+        switch summary.restVerdict {
+        case .short: "Average rest, short"
+        case .onPoint: "Average rest, on point"
+        case .long: "Average rest, long"
+        case nil: "Average rest"
+        }
+    }
+
+    static func clock(_ seconds: TimeInterval) -> String {
+        Duration.seconds(seconds.rounded()).formatted(.time(pattern: .minuteSecond))
+    }
+
+    // MARK: Effort
+
+    private static let effortWords = [1: "Easy", 4: "Moderate", 7: "Hard", 9: "All out"]
+    private static func effortWord(_ score: Int) -> String {
+        effortWords.filter { $0.key <= score }.max { $0.key < $1.key }?.value ?? "Easy"
+    }
+
+    /// How hard it felt, on the Fitness app's 1 to 10 scale, saved with the workout in Apple Health.
+    private var effortCard: some View {
+        Card("How hard was it?") {
+            HStack(spacing: Snap.Spacing.xs) {
+                ForEach(1...10, id: \.self) { score in
+                    Button {
+                        effort = score
+                        onEffort(score)
+                    } label: {
+                        Text("\(score)")
+                            .font(.subheadline.weight(.semibold))
+                            .fontDesign(.rounded)
+                            .frame(maxWidth: .infinity, minHeight: Snap.Tap.min)
+                            .foregroundStyle(effort == score ? Color.snap.background : Color.snap.textPrimary)
+                            .background(effort.map { score <= $0 } == true ? Color.snap.textPrimary : Color.snap.surfaceRaised,
+                                        in: .rect(cornerRadius: Snap.Radius.chip))
+                            .opacity(effort.map { score <= $0 } == true && effort != score ? 0.55 : 1)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(score), \(Self.effortWord(score))")
+                    .accessibilityAddTraits(effort == score ? .isSelected : [])
+                }
+            }
+            .sensoryFeedback(Snap.Haptic.stepperChange, trigger: effort)
+            Text(effort.map { "\(Self.effortWord($0)). Saved with this workout in Apple Health." }
+                 ?? "1 is easy, 10 is all out. It goes to Apple Health with the workout.")
+                .snapText(.secondary)
+        }
+    }
+
+    // MARK: Rest
+
+    @ViewBuilder
+    private var restCard: some View {
+        let gaps = summary.restGaps
+        if gaps.count > 1, let average = summary.averageRest {
+            let target = summary.targetRestSeconds
+            Card("Rest between sets") {
+                Chart {
+                    ForEach(Array(gaps.enumerated()), id: \.offset) { index, gap in
+                        BarMark(x: .value("Rest", index + 1), y: .value("Seconds", gap / 60), width: .ratio(0.6))
+                            .foregroundStyle(gap > target * 1.5 || gap < target * 0.75 ? Color.snap.statusDown : Color.snap.textSecondary.opacity(0.5))
+                            .cornerRadius(4)
+                    }
+                    RuleMark(y: .value("Plan", target / 60))
+                        .foregroundStyle(Color.snap.textPrimary)
+                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                        .annotation(position: .top, alignment: .leading) {
+                            Text("Plan \(Self.clock(target))").font(.caption).foregroundStyle(Color.snap.textSecondary)
+                        }
+                }
+                .chartXAxis(.hidden)
+                .chartYAxis {
+                    AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                        AxisGridLine()
+                        AxisValueLabel { if let minutes = value.as(Double.self) { Text("\(minutes.formatted()) min") } }
+                    }
+                }
+                .frame(height: 140)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Rest between sets")
+                .accessibilityValue("Average \(Self.clock(average)), plan \(Self.clock(target))")
+                Text(restAdvice(average: average, target: target)).snapText(.secondary)
+            }
+        }
+    }
+
+    private func restAdvice(average: TimeInterval, target: TimeInterval) -> String {
+        switch summary.restVerdict {
+        case .long:
+            "Your rests averaged \(Self.clock(average)), the plan is \(Self.clock(target)). Start the next set when the timer ends and the workout gets shorter."
+        case .short:
+            "Your rests averaged \(Self.clock(average)), the plan is \(Self.clock(target)). Take the full rest: you'll lift more on the next set."
+        default:
+            "Your rests averaged \(Self.clock(average)), right on the plan of \(Self.clock(target)). Amber bars are the ones far off."
         }
     }
 
@@ -370,12 +490,13 @@ extension WorkoutSummary {
 
 #Preview("Dark") {
     let summary = WorkoutSummary.sample()
-    WorkoutSummaryView(summary: summary, heartRate: WorkoutSummary.sampleHeartRate(for: summary)) {}
+    WorkoutSummaryView(summary: summary, heartRate: WorkoutSummary.sampleHeartRate(for: summary),
+                       energy: .init(kcal: 312, measured: true)) {}
         .preferredColorScheme(.dark)
 }
 
 #Preview("No heart rate, light") {
-    WorkoutSummaryView(summary: .sample(), heartRate: []) {}
+    WorkoutSummaryView(summary: .sample(), heartRate: [], energy: .init(kcal: 168, measured: false)) {}
         .preferredColorScheme(.light)
 }
 #endif

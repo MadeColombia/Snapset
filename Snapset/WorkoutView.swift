@@ -4,6 +4,7 @@ import SnapsetUI
 
 /// Shows the unfinished session if there is one (so a killed app resumes), otherwise the routine picker.
 struct WorkoutView: View {
+    @Environment(\.modelContext) private var context
     @Query(filter: WorkoutSession.isActive, sort: \WorkoutSession.startedAt, order: .reverse) private var active: [WorkoutSession]
     @State private var summary: WorkoutSummary?
 
@@ -16,7 +17,18 @@ struct WorkoutView: View {
             }
         }
         .fullScreenCover(item: $summary) { summary in
-            WorkoutSummaryView(summary: summary) { self.summary = nil }
+            WorkoutSummaryView(summary: summary, onEffort: { score in saveEffort(score, for: summary) }) { self.summary = nil }
+        }
+    }
+
+    /// Keeps the effort with the session and, when Health is on, with the saved workout.
+    private func saveEffort(_ score: Int, for summary: WorkoutSummary) {
+        if let id = summary.sessionID, let session = context.model(for: id) as? WorkoutSession {
+            session.effort = score
+            try? context.save()
+        }
+        if UserDefaults.standard.object(forKey: "saveToHealth") as? Bool ?? true {
+            Task { await Health.saveEffort(score, workoutEnd: summary.heartRateWindow.upperBound) }
         }
     }
 }
@@ -540,7 +552,7 @@ struct SessionView: View {
         let nextKg = nextTargets(excluding: nil).compactMapValues { target in
             target.change == .increase ? target.weightKg : nil
         }
-        onFinish(WorkoutSummary(session: session, nextKg: nextKg, in: context))
+        onFinish(WorkoutSummary(session: session, nextKg: nextKg, targetRestSeconds: Double(goal.restSeconds), in: context))
     }
 }
 

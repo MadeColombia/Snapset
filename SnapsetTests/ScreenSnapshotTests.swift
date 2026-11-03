@@ -127,7 +127,8 @@ struct ScreenSnapshotTests {
     /// The post-workout overview, with sample heart rate or with none in Health.
     private func summaryScreen(heartRate: Bool) -> AnyView {
         let summary = WorkoutSummary.sample()
-        return AnyView(WorkoutSummaryView(summary: summary, heartRate: heartRate ? WorkoutSummary.sampleHeartRate(for: summary) : []) {})
+        return AnyView(WorkoutSummaryView(summary: summary, heartRate: heartRate ? WorkoutSummary.sampleHeartRate(for: summary) : [],
+                                          energy: .init(kcal: heartRate ? 312 : 168, measured: heartRate)) {})
     }
 
     /// The Lock Screen Live Activity in its three phases, on a dark wallpaper-like backdrop.
