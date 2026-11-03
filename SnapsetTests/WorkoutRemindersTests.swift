@@ -1,9 +1,19 @@
 import Foundation
+import SwiftData
 import Testing
 @testable import Snapset
 
+@MainActor
 struct WorkoutRemindersTests {
+    let container: ModelContainer  // as in WorkoutControlsTests: models are made with a container alive
     let start = Date(timeIntervalSince1970: 1_700_000_000)
+
+    init() throws {
+        container = try ModelContainer(
+            for: Exercise.self, Routine.self, RoutineItem.self, WorkoutSession.self, SetEntry.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+    }
 
     @Test func aRestGetsARestOverReminderAndTheIdleNudgeCountsFromItsEnd() throws {
         let session = WorkoutSession(startedAt: start)
