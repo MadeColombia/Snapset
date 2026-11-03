@@ -95,6 +95,24 @@ enum Health {
         try? await store.relateWorkoutEffortSample(sample, with: workout, activity: nil)
     }
 
+    /// Deletes the workout Snapset saved for `start...end`, with the calories and effort Snapset attached to it.
+    /// Only Snapset's own data: anything a Watch recorded stays.
+    static func deleteWorkout(start: Date, end: Date) async {
+        guard await requestAccess() else { return }
+        let mine = HKQuery.predicateForObjects(from: HKSource.default())
+        let window = HKQuery.predicateForSamples(withStart: start.addingTimeInterval(-1), end: end.addingTimeInterval(1))
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [mine, window])
+        let descriptor = HKSampleQueryDescriptor(predicates: [.workout(predicate)], sortDescriptors: [])
+        let workouts = ((try? await descriptor.result(for: store)) ?? []).filter {
+            abs($0.startDate.timeIntervalSince(start)) < 1 && abs($0.endDate.timeIntervalSince(end)) < 1
+        }
+        guard !workouts.isEmpty else { return }
+        for type in [energyType, effortType] {
+            _ = try? await store.deleteObjects(of: type, predicate: predicate)
+        }
+        try? await store.delete(workouts)
+    }
+
     /// Active energy other sources recorded in the window, leaving out Snapset's own estimates.
     private static func activeEnergy(from start: Date, to end: Date) async -> Double? {
         guard await requestAccess() else { return nil }

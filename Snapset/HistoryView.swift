@@ -16,6 +16,8 @@ struct HistoryView: View {
     @Query(sort: \SetEntry.loggedAt) private var allSets: [SetEntry]
     @State private var scope = Scope.all
     @State private var period = Period.quarter
+    @State private var deleting: WorkoutSession?
+    @Environment(\.modelContext) private var context
 
     var body: some View {
         // shortcut: filters in memory over every set, fine for years of one person's training; move to predicates if it lags.
@@ -87,6 +89,9 @@ struct HistoryView: View {
                                         .snapText(.secondary)
                                 }
                             }
+                            .swipeActions {
+                                Button("Delete", systemImage: "trash", role: .destructive) { deleting = session }
+                            }
                         }
                     }
                     .listRowBackground(Color.snap.surface)
@@ -103,6 +108,7 @@ struct HistoryView: View {
                 }
             }
             .navigationTitle("Progress")
+            .deleteWorkoutDialog($deleting, in: context)
             .navigationDestination(for: WorkoutSession.self) { SessionDetailView(session: $0) }
             .navigationDestination(for: Exercise.self) { ExerciseDetailView(exercise: $0) }
         }
@@ -179,7 +185,10 @@ struct HistoryView: View {
 
 struct SessionDetailView: View {
     @AppStorage("weightUnit") private var unit: WeightUnit = .kg
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     let session: WorkoutSession
+    @State private var deleting: WorkoutSession?
     @State private var heartRate: (average: Double, max: Double)?
 
     var body: some View {
@@ -212,10 +221,34 @@ struct SessionDetailView: View {
         .snapListBackground()
         .navigationTitle(session.routineName ?? "Workout")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            Menu("More", systemImage: "ellipsis.circle") {
+                Button("Delete workout", systemImage: "trash", role: .destructive) { deleting = session }
+            }
+        }
+        .deleteWorkoutDialog($deleting, in: context) { dismiss() }
         .task {
             guard session.finishedAt != nil else { return }
             let window = session.activeWindow
             heartRate = await Health.heartRate(from: window.start, to: window.end)
+        }
+    }
+}
+
+private extension View {
+    /// Asks before a workout leaves history for good. Recorded badly is the usual reason, so it says what goes with it.
+    func deleteWorkoutDialog(_ session: Binding<WorkoutSession?>, in context: ModelContext, onDeleted: @escaping () -> Void = {}) -> some View {
+        confirmationDialog("Delete this workout?", isPresented: Binding(get: { session.wrappedValue != nil },
+                                                                         set: { if !$0 { session.wrappedValue = nil } }),
+                           titleVisibility: .visible, presenting: session.wrappedValue) { workout in
+            Button("Delete workout", role: .destructive) {
+                workout.deleteFromHistory(in: context)
+                session.wrappedValue = nil
+                onDeleted()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { workout in
+            Text("Its \(workout.sets.count) sets leave your history and progress, and the copy Snapset saved in Apple Health is deleted too. This can't be undone.")
         }
     }
 }

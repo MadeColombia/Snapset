@@ -127,4 +127,14 @@ extension WorkoutSession {
         }
         return true
     }
+
+    /// Removes a finished workout from history, and the workout Snapset saved for it in Apple Health.
+    func deleteFromHistory(in context: ModelContext) {
+        let window = activeWindow
+        if finishedAt != nil {
+            Task { await Health.deleteWorkout(start: window.start, end: window.end) }
+        }
+        context.delete(self)  // its sets go with it (cascade)
+        try? context.save()
+    }
 }
