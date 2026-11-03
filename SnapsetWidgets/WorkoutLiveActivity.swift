@@ -19,10 +19,10 @@ struct WorkoutLiveActivity: Widget {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.routineName).font(.headline).lineLimit(1)
                         .foregroundStyle(Color.snap.textPrimary)
-                    Text("Workout in progress").snapText(.secondary)
+                    Text(isResting(context) ? "Resting" : "Workout in progress").snapText(.secondary)
                 }
                 Spacer()
-                Elapsed(context: context)
+                Clock(context: context)
                     .snapText(.numberMedium)
                     .frame(maxWidth: 130, alignment: .trailing)
             }
@@ -35,7 +35,7 @@ struct WorkoutLiveActivity: Widget {
                     Logo(size: 44)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Elapsed(context: context)
+                    Clock(context: context)
                         .font(.system(.title2, design: .rounded, weight: .semibold))
                         .frame(maxWidth: 120, alignment: .trailing)
                 }
@@ -49,7 +49,7 @@ struct WorkoutLiveActivity: Widget {
             } compactLeading: {
                 Logo(size: 24)
             } compactTrailing: {
-                Elapsed(context: context)
+                Clock(context: context)
                     .font(.system(.caption, design: .rounded, weight: .semibold))
                     .frame(maxWidth: 64, alignment: .trailing)  // a timer Text otherwise claims all the width it can
             } minimal: {
@@ -60,15 +60,31 @@ struct WorkoutLiveActivity: Widget {
     }
 }
 
-/// Counts up on its own without the app sending updates; grey and frozen while paused.
-private struct Elapsed: View {
+/// Whether the activity shows a rest. Stale means the rest's end has passed and the app has not sent an update yet.
+private func isResting(_ context: ActivityViewContext<WorkoutActivityAttributes>) -> Bool {
+    !context.isStale && context.state.rest() != nil
+}
+
+/// Between sets, the rest counting down; otherwise the workout time counting up. Both run on their own without updates
+/// from the app, and are grey and frozen while paused.
+private struct Clock: View {
     let context: ActivityViewContext<WorkoutActivityAttributes>
 
     var body: some View {
-        ElapsedTime(startedAt: context.attributes.startedAt, pausedAt: context.state.pausedAt, pausedSeconds: context.state.pausedSeconds)
-            .monospacedDigit()
-            .multilineTextAlignment(.trailing)
-            .foregroundStyle(context.state.pausedAt == nil ? Color.snap.textPrimary : Color.snap.textSecondary)
+        Group {
+            switch isResting(context) ? context.state.rest() : nil {
+            case .running(let end)?:
+                Text(timerInterval: Date.now...max(end, .now), countsDown: true)
+            case .paused(let seconds)?:
+                Text(Duration.seconds(seconds), format: .time(pattern: .minuteSecond))
+            case nil:
+                ElapsedTime(startedAt: context.attributes.startedAt, pausedAt: context.state.pausedAt, pausedSeconds: context.state.pausedSeconds)
+            }
+        }
+        .monospacedDigit()
+        .multilineTextAlignment(.trailing)
+        .foregroundStyle(context.state.pausedAt == nil ? Color.snap.textPrimary : Color.snap.textSecondary)
+        .accessibilityLabel(isResting(context) ? "Rest left" : "Workout time")
     }
 }
 

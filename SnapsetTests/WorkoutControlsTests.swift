@@ -32,6 +32,53 @@ struct WorkoutControlsTests {
         #expect(session.pausedSeconds == 40)
     }
 
+    @Test func aPauseHoldsTheRestAndResumingKeepsWhatWasLeft() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let session = WorkoutSession(startedAt: start)
+        session.startRest(90, at: start.addingTimeInterval(60))
+        #expect(session.restRemaining(at: start.addingTimeInterval(70)) == 80)
+        session.togglePause(at: start.addingTimeInterval(70))
+        // Frozen while paused, however long the pause.
+        #expect(session.restRemaining(at: start.addingTimeInterval(400)) == 80)
+        session.togglePause(at: start.addingTimeInterval(250))
+        #expect(session.restRemaining(at: start.addingTimeInterval(250)) == 80)
+    }
+
+    /// Field-test bug: pause, log a set, resume, and the rest had the whole pause added to it.
+    @Test func loggingASetWhilePausedResumesAndStartsAPlainRest() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let session = WorkoutSession(startedAt: start)
+        session.togglePause(at: start.addingTimeInterval(60))
+        let logged = start.addingTimeInterval(240)  // three minutes paused
+        session.startRest(90, at: logged)
+        #expect(session.pausedAt == nil)
+        #expect(session.pausedSeconds == 180)
+        #expect(session.restRemaining(at: logged) == 90)
+        // A later pause and resume still adds nothing.
+        session.togglePause(at: logged.addingTimeInterval(10))
+        session.togglePause(at: logged.addingTimeInterval(70))
+        #expect(session.restRemaining(at: logged.addingTimeInterval(70)) == 80)
+    }
+
+    @Test func aRestThatRanOutBeforeThePauseEndsOnResume() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let session = WorkoutSession(startedAt: start)
+        session.startRest(60, at: start)
+        session.togglePause(at: start.addingTimeInterval(100))
+        #expect(session.restRemaining(at: start.addingTimeInterval(100)) == nil)
+        session.togglePause(at: start.addingTimeInterval(200))
+        #expect(session.restEndsAt == nil)
+    }
+
+    @Test func theRestEndsOnAWholeSecondOfTheWorkoutClock() throws {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let session = WorkoutSession(startedAt: start)
+        session.startRest(90, at: start.addingTimeInterval(12.4))
+        let end = try #require(session.restEndsAt)
+        #expect(end.timeIntervalSince(session.clockStart) == 103)
+        #expect(session.restSeconds == 91)  // 90.6, shown as a whole second
+    }
+
     @Test func nextSetMovesOnOnceAnExerciseHasItsSetsAndRepeatsTheLastSet() throws {
         let session = WorkoutSession()
         session.plan = [PlannedExercise(exerciseID: press.id, targetSets: 1), PlannedExercise(exerciseID: row.id, targetSets: 2)]

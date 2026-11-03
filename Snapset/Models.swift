@@ -81,6 +81,9 @@ final class WorkoutSession {
     var plan: [PlannedExercise] = []
     var pausedAt: Date?
     var pausedSeconds: Double = 0  // finished pauses, left out of the workout time
+    // The rest between sets lives here, not in a screen, so the Live Activity, the mini bar and a relaunched app all see it.
+    var restEndsAt: Date?
+    var restSeconds: Double = 0  // the rest's full length, for the ring
     @Relationship(deleteRule: .cascade, inverse: \SetEntry.session) var sets: [SetEntry] = []
 
     static let isActive = #Predicate<WorkoutSession> { $0.finishedAt == nil }
@@ -102,11 +105,44 @@ final class WorkoutSession {
 
     func togglePause(at now: Date = .now) {
         if let pausedAt {
-            pausedSeconds += now.timeIntervalSince(pausedAt)
+            let paused = now.timeIntervalSince(pausedAt)
+            pausedSeconds += paused
             self.pausedAt = nil
+            // A pause holds the rest too: what was left when it started is still left. A rest that had already run out ends here.
+            if let restEndsAt { self.restEndsAt = restEndsAt > pausedAt ? restEndsAt.addingTimeInterval(paused) : nil }
         } else {
             pausedAt = now
         }
+    }
+
+    /// When the workout clock reads 0:00, pauses left out. The rest is lined up with it, so both timers tick together.
+    var clockStart: Date { startedAt.addingTimeInterval(pausedSeconds) }
+
+    /// Starts a rest of `seconds`. Logging a set means training again, so a paused workout resumes first;
+    /// otherwise the resume would add the whole pause to a rest that only started now.
+    func startRest(_ seconds: Double, at now: Date = .now) {
+        if pausedAt != nil { togglePause(at: now) }
+        // Rounded up to a whole second of the workout clock, so the rest and the clock change digits at the same moment.
+        let end = clockStart.addingTimeInterval((now.timeIntervalSince(clockStart) + seconds).rounded(.up))
+        restEndsAt = end
+        restSeconds = end.timeIntervalSince(now).rounded()
+    }
+
+    /// Seconds of rest left, frozen while paused; nil when no rest is running.
+    func restRemaining(at now: Date = .now) -> TimeInterval? {
+        guard let restEndsAt else { return nil }
+        let left = restEndsAt.timeIntervalSince(pausedAt ?? now)
+        return left > 0 ? left : nil
+    }
+
+    func addRest(_ seconds: Double, at now: Date = .now) {
+        guard let restEndsAt else { return }
+        self.restEndsAt = restEndsAt.addingTimeInterval(seconds)
+        restSeconds = max(restSeconds, (restRemaining(at: now) ?? 0).rounded())
+    }
+
+    func endRest() {
+        restEndsAt = nil
     }
 
     convenience init(routine: Routine) {

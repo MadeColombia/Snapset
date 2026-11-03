@@ -9,6 +9,19 @@ struct WorkoutActivityAttributes: ActivityAttributes {
         var pausedAt: Date?
         var pausedSeconds: Double = 0
         var detail: String       // e.g. "Set 2/3: 60 kg × 8 · Bench Press"
+        var restEndsAt: Date?    // a rest between sets; while paused, what is left is restEndsAt minus pausedAt
+
+        /// The rest still to go: running (counts down on its own until `end`), paused (frozen seconds), or none.
+        enum Rest { case running(end: Date), paused(seconds: Int) }
+
+        func rest(at now: Date = .now) -> Rest? {
+            guard let restEndsAt else { return nil }
+            if let pausedAt {
+                let left = restEndsAt.timeIntervalSince(pausedAt)
+                return left > 0 ? .paused(seconds: Int(left.rounded())) : nil
+            }
+            return restEndsAt > now ? .running(end: restEndsAt) : nil
+        }
     }
 
     var routineName: String

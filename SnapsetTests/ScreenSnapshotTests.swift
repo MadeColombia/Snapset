@@ -67,11 +67,13 @@ struct ScreenSnapshotTests {
     func renderScreens() throws {
         let workout = { (legSets: Int, pressSets: Int, resting: Bool, paused: Bool) -> AnyView in
             session.pausedAt = paused ? .now : nil
+            session.restEndsAt = resting ? .now.addingTimeInterval(75) : nil
+            session.restSeconds = 90
             session.sets.forEach(context.delete)
             session.sets = (0..<legSets).map { SetEntry(exercise: legs, weightKg: 100, reps: 12, loggedAt: .now.addingTimeInterval(Double($0 - 4) * 150)) }
                 + (0..<pressSets).map { _ in SetEntry(exercise: press, weightKg: 47.5, reps: 12) }
             try? context.save()
-            return AnyView(NavigationStack { SessionView(session: session, restingUntil: resting ? .now.addingTimeInterval(75) : nil) { _, _ in } })
+            return AnyView(NavigationStack { SessionView(session: session) { _, _ in } })
         }
         let screens: [(String, () -> AnyView)] = [
             ("start-workout", { AnyView(NavigationStack { StartWorkoutView() }) }),

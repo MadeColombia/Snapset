@@ -168,17 +168,11 @@ struct SessionView: View {
     @State private var confirmingFinish = false
     @State private var targets: [String: Progression.Target] = [:]
     @State private var chosen: Int?  // a step the lifter tapped; nil follows the plan
-    @State private var restEnds: Date?
-    @State private var restTotal: TimeInterval = 0
     @State private var toast: Toast?
 
-    init(session: WorkoutSession, restingUntil: Date? = nil, onFinish: @escaping (_ goingUp: [String], _ best: String?) -> Void) {
+    init(session: WorkoutSession, onFinish: @escaping (_ goingUp: [String], _ best: String?) -> Void) {
         self.session = session
         self.onFinish = onFinish
-        _restEnds = State(initialValue: restingUntil)
-        // The goal's full rest, so a rest already under way shows how much of it is left.
-        let goal = Goal(rawValue: UserDefaults.standard.string(forKey: "goal") ?? "") ?? .muscle
-        _restTotal = State(initialValue: max(Double(goal.restSeconds), restingUntil?.timeIntervalSinceNow.rounded(.up) ?? 0))
     }
 
     enum Sheet: Identifiable {
@@ -228,7 +222,7 @@ struct SessionView: View {
         }
         .background(Color.snap.background)
         .snapAnimation(value: current)
-        .snapAnimation(value: restEnds)
+        .snapAnimation(value: session.restEndsAt)
         .overlay(alignment: .bottom) {
             if let toast {
                 UndoToast(toast.message, isBest: toast.isBest) {
@@ -246,14 +240,14 @@ struct SessionView: View {
             try? await Task.sleep(for: .seconds(5))
             if !Task.isCancelled { toast = nil }
         }
-        .task(id: restEnds) {
-            guard let restEnds else { return }
+        .task(id: session.restEndsAt) {
+            guard let restEnds = session.restEndsAt else { return }
             try? await Task.sleep(for: .seconds(max(0, restEnds.timeIntervalSinceNow)))
-            // A pause holds the rest; resuming moves its end and restarts this task.
-            if !Task.isCancelled, session.pausedAt == nil { self.restEnds = nil }
-        }
-        .onChange(of: session.pausedAt) { old, new in
-            if let old, new == nil, let restEnds { self.restEnds = restEnds.addingTimeInterval(Date.now.timeIntervalSince(old)) }
+            // A pause holds the rest; resuming moves its end (WorkoutSession.togglePause) and restarts this task.
+            if !Task.isCancelled, session.pausedAt == nil {
+                session.endRest()
+                try? context.save()
+            }
         }
         .navigationTitle(session.routineName ?? "Workout")
         // An alert, not a confirmationDialog: on iOS 26+ the dialog pops over the button instead of centering.
@@ -289,7 +283,7 @@ struct SessionView: View {
             if let index = chosen ?? upNext, let exercise = byID[session.plan[index].exerciseID] { sheet = .log(exercise) }
         }
         // Keeps the Dynamic Island's next set and pause state in step with this screen.
-        .task(id: "\(session.sets.count)-\(String(describing: session.pausedAt))-\(goal.rawValue)-\(unit.rawValue)") {
+        .task(id: "\(session.sets.count)-\(String(describing: session.pausedAt))-\(String(describing: session.restEndsAt))-\(goal.rawValue)-\(unit.rawValue)") {
             WorkoutActivity.sync(session, in: context)
         }
         .task(id: "\(goal.rawValue)-\(unit.rawValue)") {
@@ -338,16 +332,17 @@ struct SessionView: View {
         }
         RoadmapStep(title: exercise.name, detail: detail, state: state,
                     isLast: index == session.plan.count - 1, onSelect: { chosen = index }) {
-            if let restEnds {
+            if session.restEndsAt != nil {
                 // Between sets the step goes quiet: the countdown and what comes next.
-                TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                    let pausedAt = session.pausedAt
-                    RestTimer(remaining: restEnds.timeIntervalSince(pausedAt ?? timeline.date), total: restTotal,
-                              paused: pausedAt != nil, next: nextLine) {
-                        self.restEnds = nil
+                // Ticks on the workout clock's seconds, so the two numbers change together.
+                TimelineView(.periodic(from: session.clockStart, by: 1)) { timeline in
+                    RestTimer(remaining: (session.restRemaining(at: timeline.date) ?? 0).rounded(), total: session.restSeconds,
+                              paused: session.pausedAt != nil, next: nextLine) {
+                        session.endRest()
+                        try? context.save()
                     } onAddThirty: {
-                        self.restEnds = restEnds.addingTimeInterval(30)
-                        restTotal = max(restTotal, restEnds.addingTimeInterval(30).timeIntervalSince(pausedAt ?? .now))
+                        session.addRest(30)
+                        try? context.save()
                     }
                 }
                 setRows(logged)
@@ -442,13 +437,19 @@ struct SessionView: View {
         let isBest = session.isNewBest(entry, in: context)
         toast = Toast(message: isBest ? "New best: \(load(kg: weightKg, reps: reps)) on \(exercise.name.lowercased())!" : "Set saved",
                       isBest: isBest) {
-            restEnds = nil
+            session.endRest()
             remove(entry)
         }
         // A finished step hands over to the next one with sets to do.
         if let index = chosen, sets(of: exercise).count >= session.plan[index].targetSets { chosen = nil }
-        restTotal = Double(goal.restSeconds)
-        restEnds = upNext == nil ? nil : .now.addingTimeInterval(restTotal)
+        // Also resumes a paused workout: logging a set means training again.
+        if upNext == nil {
+            session.endRest()
+            if session.pausedAt != nil { session.togglePause() }
+        } else {
+            session.startRest(Double(goal.restSeconds))
+        }
+        try? context.save()
     }
 
     private func change(_ set: SetEntry, weightKg: Double, reps: Int) {

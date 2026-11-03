@@ -7,7 +7,10 @@ enum WorkoutActivity {
     /// Shows `session` as it is now, starting the activity or updating the one already running for it.
     static func sync(_ session: WorkoutSession, in context: ModelContext) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-        let content = ActivityContent(state: state(of: session, in: context), staleDate: nil)
+        let state = state(of: session, in: context)
+        // Going stale when the rest runs out tells the widget to go back to the workout time, even if the app is asleep by then.
+        let staleDate = state.pausedAt == nil ? state.restEndsAt : nil
+        let content = ActivityContent(state: state, staleDate: staleDate)
         let running = Activity<WorkoutActivityAttributes>.activities
         if let current = running.first(where: { $0.activityState == .active && $0.attributes.startedAt == session.startedAt }) {
             Task { await current.update(content) }
@@ -87,7 +90,8 @@ enum WorkoutActivity {
         } else {
             detail = "All planned sets logged"
         }
-        return .init(pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds, detail: detail)
+        return .init(pausedAt: session.pausedAt, pausedSeconds: session.pausedSeconds, detail: detail,
+                     restEndsAt: session.restRemaining() == nil ? nil : session.restEndsAt)
     }
 }
 
