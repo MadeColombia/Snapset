@@ -77,7 +77,7 @@ struct WorkoutSummary: Identifiable {
     var highlight: (title: String, detail: String) {
         let gain = { (result: ExerciseResult) in result.topKg - (result.lastTopKg ?? result.topKg) }
         if let best = newBests.max(by: { gain($0) < gain($1) }) {
-            let detail = gain(best) > 0 ? "Top set up \(Self.kg(gain(best))) on last time." : "Heavier than ever."
+            let detail = gain(best) > 0 ? "Top set \(Self.kg(gain(best))) heavier than last time." : "Heavier than ever."
             return ("\(best.name) got the upgrade!", detail)
         }
         if let up = goingUp.first, let next = up.nextKg {
