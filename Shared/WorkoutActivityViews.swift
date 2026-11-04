@@ -124,12 +124,13 @@ struct WorkoutLockScreenView<Logo: View>: View {
                         Spacer(minLength: 4)
                     }
                     if let bpm = state.heartRate {
-                        Label("\(bpm)", systemImage: "heart.fill")
-                            .font(.caption.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(Color.snap.textSecondary)
-                            .labelStyle(.titleAndIcon)
-                            .accessibilityLabel("Heart rate \(bpm) beats per minute")
+                        HStack(spacing: 3) {
+                            Image(systemName: "heart.fill").foregroundStyle(Color.snap.heartRate)
+                            Text("\(bpm)").monospacedDigit().foregroundStyle(Color.snap.textSecondary)
+                        }
+                        .font(.caption.weight(.semibold))
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Heart rate \(bpm) beats per minute")
                     }
                     if state.times.restRemaining() != nil {
                         // The big clock shows the rest; the total keeps its place up here, so the activity time stays clear.

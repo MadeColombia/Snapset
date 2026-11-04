@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Brand colours from the package asset catalog. Each has a light (Any) and a dark appearance.
-/// There is deliberately no red: lighter weights and warnings use `statusDown` (amber).
+/// There is deliberately no red: lighter weights and warnings use `statusDown` (amber). The one exception is `heartRate`.
 public struct SnapColors: Sendable {
     public let background = Color("background", bundle: .module)
     public let surface = Color("surface", bundle: .module)
@@ -23,6 +23,10 @@ public struct SnapColors: Sendable {
     public var actionResume: Color { accent }
     /// Pause: stop for now. Amber, not red (decided 2026-11-01).
     public var actionPause: Color { statusDown }
+
+    /// The heart icon beside a heart rate reading, red as in Apple Health (decided 2026-11-04).
+    /// Only that icon: never text, warnings, buttons or charts.
+    public var heartRate: Color { .red }
 }
 
 extension Color {
