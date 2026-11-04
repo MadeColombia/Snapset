@@ -17,8 +17,7 @@ struct WorkoutLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WorkoutActivityAttributes.self) { context in
             // Lock Screen and notification banner
-            WorkoutLockScreenView(routineName: context.attributes.routineName, state: context.state, isStale: context.isStale) { Logo() }
-                .activityBackgroundTint(Color.snap.background)
+            LockScreenCard(context: context)
                 .activitySystemActionForegroundColor(Color.snap.textPrimary)
         } dynamicIsland: { context in
             let phase = context.state.phase(isStale: context.isStale)
@@ -58,6 +57,18 @@ struct WorkoutLiveActivity: Widget {
             }
             .keylineTint(phase.color)
         }
+    }
+}
+
+/// The Lock Screen card on an opaque tint chosen from the same colour scheme as its text: white in light mode, the app's dark in
+/// dark mode. (The app's cream background turned gold over the wallpaper.)
+private struct LockScreenCard: View {
+    @Environment(\.colorScheme) private var scheme
+    let context: ActivityViewContext<WorkoutActivityAttributes>
+
+    var body: some View {
+        WorkoutLockScreenView(routineName: context.attributes.routineName, state: context.state, isStale: context.isStale) { Logo() }
+            .activityBackgroundTint(scheme == .dark ? Color(red: 0x14 / 255, green: 0x17 / 255, blue: 0x1B / 255) : .white)
     }
 }
 

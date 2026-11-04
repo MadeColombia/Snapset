@@ -30,6 +30,9 @@ enum Goal: String, CaseIterable {
         case .lean: 60
         }
     }
+
+    /// The lifter's own rest from Settings (seconds; 0 means follow the goal).
+    func restSeconds(custom: Int) -> Int { custom > 0 ? custom : restSeconds }
 }
 
 /// Double progression: hit the top of the rep range on every set, then add the smallest load step.

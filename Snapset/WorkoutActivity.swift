@@ -27,6 +27,7 @@ enum WorkoutActivity {
         let staleDate = state.times.phase() == .resting ? state.times.restEndsAt : nil
         let content = ActivityContent(state: state, staleDate: staleDate)
         let running = Activity<WorkoutActivityAttributes>.activities
+        scheduleRestEnd(of: state)
         if let current = running.first(where: { $0.activityState == .active && $0.attributes.startedAt == session.startedAt }) {
             Task { await current.update(content) }
             return
@@ -36,6 +37,24 @@ enum WorkoutActivity {
         _ = try? Activity.request(attributes: attributes, content: content)
     }
 
+    private static var restEndTask: Task<Void, Never>?
+
+    /// The widget can't redraw itself when a rest runs out (its timer just stops at 0:00 until the system gets round to the stale date),
+    /// so the app pushes the finished state itself, on the dot. A live Health session keeps the app running for this.
+    private static func scheduleRestEnd(of state: WorkoutActivityAttributes.ContentState) {
+        restEndTask?.cancel()
+        guard state.times.phase() == .resting, let end = state.times.restEndsAt else { return }
+        restEndTask = Task {
+            try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow)))
+            guard !Task.isCancelled else { return }
+            var done = state
+            done.times.settle(at: end)
+            for activity in Activity<WorkoutActivityAttributes>.activities where activity.activityState == .active {
+                await activity.update(ActivityContent(state: done, staleDate: nil))
+            }
+        }
+    }
+
     /// Ends the Live Activity and cancels the workout's reminders.
     static func end() {
         WorkoutReminders.cancel()
@@ -43,6 +62,7 @@ enum WorkoutActivity {
     }
 
     private static func endActivities() {
+        restEndTask?.cancel()
         for activity in Activity<WorkoutActivityAttributes>.activities {
             Task { await activity.end(nil, dismissalPolicy: .immediate) }
         }

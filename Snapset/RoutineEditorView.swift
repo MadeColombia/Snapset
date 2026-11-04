@@ -33,12 +33,20 @@ struct RoutineEditorView: View {
                         if item.targetReps != nil {
                             Button("Use goal range") { item.targetReps = nil }
                         }
+                        if let exercise = item.exercise {
+                            // Set here, not while logging: changing what a weight means mid-workout would skew the progression.
+                            Picker("Weight means", selection: Binding(get: { exercise.loadMode ?? .total },
+                                                                      set: { exercise.loadModeRaw = $0.rawValue })) {
+                                ForEach(LoadMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                            }
+                        }
                     } label: {
                         HStack {
                             if let exercise = item.exercise { ExerciseThumbnail(exercise: exercise) }
                             VStack(alignment: .leading) {
                                 Text(item.exercise?.name ?? "Unknown exercise").foregroundStyle(Color.snap.textPrimary)
-                                Text("\(item.targetSets) sets · \(reps)").snapText(.secondary)
+                                Text(["\(item.targetSets) sets · \(reps)", item.exercise?.loadMode?.label].compactMap { $0 }.joined(separator: " · "))
+                                    .snapText(.secondary)
                             }
                         }
                     }

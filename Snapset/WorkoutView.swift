@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 import SwiftData
 import SnapsetUI
 
@@ -168,6 +169,8 @@ struct SessionView: View {
     @Environment(\.modelContext) private var context
     @AppStorage("weightUnit") private var unit: WeightUnit = .kg
     @AppStorage("goal") private var goal: Goal = .muscle
+    @AppStorage("restSeconds") private var customRest = 0  // Settings; 0 follows the goal
+    @State private var explainNotifications = false
     @Bindable var session: WorkoutSession
     let onFinish: (WorkoutSummary) -> Void
     @Query private var exercises: [Exercise]
@@ -243,7 +246,17 @@ struct SessionView: View {
         .snapAnimation(value: allDone)
         .sensoryFeedback(.success, trigger: allDone) { _, done in done }
         .onChange(of: upNext == nil) { _, finished in if !finished { keepGoing = false } }
-        .task { await WorkoutReminders.requestAccess() }
+        .task {
+            // Say what the alerts are for before iOS asks, since it only asks once.
+            if await UNUserNotificationCenter.current().notificationSettings().authorizationStatus == .notDetermined {
+                explainNotifications = true
+            }
+        }
+        .alert("Stay on track with notifications", isPresented: $explainNotifications) {
+            Button("Continue") { Task { await WorkoutReminders.requestAccess() } }
+        } message: {
+            Text("Snapset sends a notification when your rest is over, so you can lock your phone between sets. It also nudges you if a workout is left running, so it gets saved. Nothing else.")
+        }
         .overlay(alignment: .bottom) {
             if let toast {
                 UndoToast(toast.message, isBest: toast.isBest) {
@@ -406,7 +419,7 @@ struct SessionView: View {
                 if target?.change == .start {
                     Text("First time? Watch the loop, then go light.").snapText(.secondary)
                 }
-                if let target { TargetBlock(target: target, unit: unit) }
+                if let target { TargetBlock(target: target, unit: unit, loadNote: exercise.loadNote) }
                 setRows(logged)
                 // Only the step with sets still to do gets the orange button; while paused, Resume has it.
                 if done {
@@ -439,7 +452,7 @@ struct SessionView: View {
 
     /// About how long a step takes: every set plus the rest after it.
     private func minutes(for planned: PlannedExercise) -> Int {
-        max(1, Int((Double(planned.targetSets * (Self.secondsPerSet + goal.restSeconds)) / 60).rounded()))
+        max(1, Int((Double(planned.targetSets * (Self.secondsPerSet + goal.restSeconds(custom: customRest))) / 60).rounded()))
     }
 
     /// shortcut: a fixed guess at how long one set takes; upgrade once timed sets are measured.
@@ -514,7 +527,7 @@ struct SessionView: View {
             if session.pausedAt != nil { session.togglePause() }
             session.endRest()
         } else {
-            session.startRest(Double(goal.restSeconds))
+            session.startRest(Double(goal.restSeconds(custom: customRest)))
         }
         try? context.save()
     }
@@ -558,7 +571,7 @@ struct SessionView: View {
         let nextKg = nextTargets(excluding: nil).compactMapValues { target in
             target.change == .increase ? target.weightKg : nil
         }
-        var summary = WorkoutSummary(session: session, nextKg: nextKg, targetRestSeconds: Double(goal.restSeconds), in: context)
+        var summary = WorkoutSummary(session: session, nextKg: nextKg, targetRestSeconds: Double(goal.restSeconds(custom: customRest)), in: context)
         summary.liveKcal = liveKcal
         onFinish(summary)
     }
@@ -632,6 +645,7 @@ private struct WorkoutControls: View {
 private struct TargetBlock: View {
     let target: Progression.Target
     let unit: WeightUnit
+    var loadNote: String? = nil
 
     var body: some View {
         let reps = SessionView.repsText(target.reps)
@@ -643,6 +657,7 @@ private struct TargetBlock: View {
                         Text(unit.rawValue).snapText(.heroUnit)
                     }
                     Text("× \(reps) · \(target.sets) sets").snapText(.body)
+                    if let loadNote { Text(loadNote).snapText(.secondary) }
                 }
                 .foregroundStyle(Color.snap.textPrimary)
                 .accessibilityElement(children: .combine)

@@ -28,6 +28,7 @@ final class Exercise {
     @Attribute(.unique) var id: String
     var name: String
     var equipmentRaw: String
+    var loadModeRaw: String?  // user override of defaultLoadMode
 
     var equipment: Equipment { Equipment(rawValue: equipmentRaw) ?? .machine }
 
@@ -35,6 +36,52 @@ final class Exercise {
         self.id = id
         self.name = name
         self.equipmentRaw = equipment.rawValue
+    }
+
+    /// What the logged weight means, when the user hasn't said otherwise.
+    var defaultLoadMode: LoadMode? {
+        switch id {
+        case "dumbbell.goblet-squat", "dumbbell.overhead-triceps-extension": .oneDumbbell
+        case "dumbbell.dumbbell-row": .oneDumbbellEachArm
+        case _ where equipment == .dumbbell: .eachDumbbell
+        case "cable.cable-fly", "cable.cable-biceps-curl", "cable.cable-lateral-raise": .eachArm
+        case "machine.glute-kickback": .eachLeg
+        case "plateLoaded.hack-squat", "plateLoaded.plate-loaded-leg-press", "plateLoaded.plate-loaded-chest-press": .eachSide
+        default: nil
+        }
+    }
+
+    /// The user's choice wins, so a wrong default is one tap to fix.
+    var loadMode: LoadMode? { loadModeRaw.flatMap(LoadMode.init(rawValue:)) ?? defaultLoadMode }
+    var loadNote: String? { loadMode?.note }
+}
+
+/// How the weight is counted for an exercise: one number can mean a single dumbbell, each dumbbell, each limb, or the lot.
+enum LoadMode: String, CaseIterable {
+    case total, eachDumbbell, oneDumbbell, oneDumbbellEachArm, eachArm, eachLeg, eachSide
+
+    var label: String {
+        switch self {
+        case .total: "Total weight"
+        case .eachDumbbell: "Each dumbbell"
+        case .oneDumbbell: "One dumbbell"
+        case .oneDumbbellEachArm: "One dumbbell, each arm"
+        case .eachArm: "Each arm"
+        case .eachLeg: "Each leg"
+        case .eachSide: "Each side"
+        }
+    }
+
+    var note: String? {
+        switch self {
+        case .total: nil
+        case .eachDumbbell: "Weight of each dumbbell, not both added"
+        case .oneDumbbell: "Weight of the one dumbbell"
+        case .oneDumbbellEachArm: "Weight of the one dumbbell, for each arm"
+        case .eachArm: "Weight for each arm, not both added"
+        case .eachLeg: "Weight for each leg, not both added"
+        case .eachSide: "Weight for each side, not both added"
+        }
     }
 }
 

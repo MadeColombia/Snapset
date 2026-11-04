@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage("experience") private var experience: Experience = .beginner
     @AppStorage("trainingDays") private var days = 3
     @AppStorage("saveToHealth") private var saveToHealth = true
+    @AppStorage("restSeconds") private var rest = 0
     @Environment(\.modelContext) private var context
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
     @State private var exportFile: BackupFile?
@@ -25,6 +26,18 @@ struct SettingsView: View {
                 .listRowBackground(Color.snap.surface)
 
                 TrainingProfileSection(goal: $goal, experience: $experience, days: $days)
+
+                Section {
+                    Picker("Rest between sets", selection: $rest) {
+                        Text("Follow my goal (\(Self.clock(goal.restSeconds)))").tag(0)
+                        ForEach([30, 45, 60, 90, 120, 150, 180, 240, 300], id: \.self) { Text(Self.clock($0)).tag($0) }
+                    }
+                } header: {
+                    Text("Rest")
+                } footer: {
+                    Text("How long the rest timer runs after each set. You can still add time or skip it during a workout.")
+                }
+                .listRowBackground(Color.snap.surface)
 
                 Section {
                     Toggle("Save workouts to Health", isOn: $saveToHealth)
@@ -84,6 +97,10 @@ struct SettingsView: View {
             }
         }
     }
+}
+
+private extension SettingsView {
+    static func clock(_ seconds: Int) -> String { "\(seconds / 60):" + String(format: "%02d", seconds % 60) }
 }
 
 #Preview {

@@ -28,6 +28,7 @@ struct SetConfirmView: View {
                 }
 
                 HeroNumberStepper("Weight", value: $weight, step: unit.step, in: 0...9_999, unit: unit.rawValue, editable: true)
+                if let note = exercise.loadNote { Text(note).snapText(.secondary).multilineTextAlignment(.center) }
                 HeroNumberStepper("Reps", value: Binding(get: { Double(reps) }, set: { reps = Int($0) }),
                                   step: 1, in: 1...999, unit: "reps")
 
