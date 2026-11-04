@@ -122,4 +122,13 @@ struct WorkoutSummaryTests {
         #expect(Health.estimatedKcal(activeSeconds: 3_600, bodyKg: 80) == 200)
         #expect(Health.estimatedKcal(activeSeconds: 3_600, bodyKg: nil) == 175)
     }
+
+    @Test func liveCaloriesShowAsMeasured() {
+        var summary = WorkoutSummary.sample()
+        #expect(summary.liveEnergy == nil)  // no live session: the overview looks them up in Health
+        summary.liveKcal = 0
+        #expect(summary.liveEnergy == nil)
+        summary.liveKcal = 241.5
+        #expect(summary.liveEnergy == Health.Energy(kcal: 241.5, measured: true))
+    }
 }

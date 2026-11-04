@@ -17,7 +17,7 @@ struct WorkoutView: View {
             }
         }
         .fullScreenCover(item: $summary) { summary in
-            WorkoutSummaryView(summary: summary, onEffort: { score in saveEffort(score, for: summary) }) { self.summary = nil }
+            WorkoutSummaryView(summary: summary, energy: summary.liveEnergy, onEffort: { score in saveEffort(score, for: summary) }) { self.summary = nil }
         }
     }
 
@@ -359,6 +359,14 @@ struct SessionView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     .accessibilityLabel(session.pausedAt == nil ? "Workout time" : "Workout paused")
+                // From a paired heart rate strap during a live session (iOS 26); hidden without one.
+                if let bpm = LiveMetrics.heartRate {
+                    Label("\(bpm) bpm", systemImage: "heart.fill")
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(Color.snap.textSecondary)
+                        .contentTransition(.numericText())
+                        .accessibilityLabel("Heart rate \(bpm) beats per minute")
+                }
                 // A workout left open overnight shows its date, so a stale one is easy to spot.
                 let today = Calendar.current.isDateInToday(session.startedAt)
                 Text("Started \(session.startedAt.formatted(date: today ? .omitted : .abbreviated, time: .shortened)) · \(session.sets.count) sets logged")
@@ -554,11 +562,15 @@ struct SessionView: View {
     }
 
     private func finish() {
+        var liveKcal: Double?
+        if #available(iOS 26.0, *) { liveKcal = LiveWorkout.shared.measuredKcal(startedAt: session.startedAt) }  // before finish stops it
         guard session.finish(in: context) else { return }  // discarded, or a second tap
         let nextKg = nextTargets(excluding: nil).compactMapValues { target in
             target.change == .increase ? target.weightKg : nil
         }
-        onFinish(WorkoutSummary(session: session, nextKg: nextKg, targetRestSeconds: Double(goal.restSeconds), in: context))
+        var summary = WorkoutSummary(session: session, nextKg: nextKg, targetRestSeconds: Double(goal.restSeconds), in: context)
+        summary.liveKcal = liveKcal
+        onFinish(summary)
     }
 }
 

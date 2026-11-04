@@ -39,6 +39,14 @@ struct WorkoutSummary: Identifiable {
     let heartRateWindow: ClosedRange<Date>
     /// The rest the goal asks for between sets.
     var targetRestSeconds: TimeInterval = 90
+    /// Calories the live session measured (iOS 26). Health saves them under Snapset, which the overview's own lookup leaves out.
+    var liveKcal: Double?
+
+    /// The live session's calories as measured, or nil to look them up in Health.
+    var liveEnergy: Health.Energy? {
+        guard let liveKcal, liveKcal > 0 else { return nil }
+        return Health.Energy(kcal: liveKcal, measured: true)
+    }
 
     var setsLogged: Int { exercises.reduce(0) { $0 + $1.sets.count } }
     var newBests: [ExerciseResult] { exercises.filter(\.isNewBest) }

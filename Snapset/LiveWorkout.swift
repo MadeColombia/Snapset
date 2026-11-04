@@ -1,11 +1,18 @@
 import Foundation
 import HealthKit
 import Intents
+import Observation
 
-/// The live heart rate for the Live Activity. Nil on iOS 18 to 25, with no Bluetooth heart rate strap, or while the phone
+/// The live heart rate for the Live Activity and the workout screen. Nil on iOS 18 to 25, with no Bluetooth heart rate strap, or while the phone
 /// is locked when the person didn't allow workout data on a locked phone; the Lock Screen then shows only the clock.
 enum LiveMetrics {
-    static var heartRate: Int?
+    @Observable final class Store { var heartRate: Int? }
+    /// Observed, so the workout screen redraws with each new reading.
+    static let store = Store()
+    static var heartRate: Int? {
+        get { store.heartRate }
+        set { store.heartRate = newValue }
+    }
     /// Set by the app at launch: redraws the Live Activity after a new reading.
     static var onChange: (@MainActor () -> Void)?
 }
@@ -37,6 +44,13 @@ final class LiveWorkout: NSObject {
     func isRunning(for start: Date) -> Bool {
         guard let session, let startedAt, !finishing else { return false }
         return abs(startedAt.timeIntervalSince(start)) < 1 && (session.state == .running || session.state == .paused)
+    }
+
+    /// Calories the live session has measured so far, for the overview; nil when no live session runs for this workout.
+    /// Read before `finish`, which stops the session.
+    func measuredKcal(startedAt start: Date) -> Double? {
+        guard isRunning(for: start) else { return nil }
+        return builder?.statistics(for: Health.energyType)?.sumQuantity()?.doubleValue(for: .kilocalorie())
     }
 
     // MARK: Following Snapset's workout
