@@ -105,8 +105,30 @@ struct WorkoutSummaryTests {
         #expect(summary.highlight.title == "Seated Row goes up next time")
     }
 
+    @Test func exerciseBlocksFollowRunsOfSetsAndNeverOverlap() {
+        let t = { (s: Double) in self.start.addingTimeInterval(s) }
+        let blocks = Health.exerciseBlocks([("Row", t(600)), ("Press", t(100)), ("Press", t(300)), ("Row", t(700)), ("Press", t(900))],
+                                           workoutStart: start)
+        #expect(blocks == [Health.ExerciseBlock(name: "Press", start: start, end: t(300), sets: 2),
+                           Health.ExerciseBlock(name: "Row", start: t(300), end: t(700), sets: 2),
+                           Health.ExerciseBlock(name: "Press", start: t(700), end: t(900), sets: 1)])
+    }
+
+    @Test func syncIdentifierIsStableForASession() {
+        #expect(Health.syncIdentifier(sessionStartedAt: start) == "snapset.workout.1700000000000")
+    }
+
     @Test func calorieEstimateUsesBodyWeightOrSeventyKilos() {
         #expect(Health.estimatedKcal(activeSeconds: 3_600, bodyKg: 80) == 200)
         #expect(Health.estimatedKcal(activeSeconds: 3_600, bodyKg: nil) == 175)
+    }
+
+    @Test func liveCaloriesShowAsMeasured() {
+        var summary = WorkoutSummary.sample()
+        #expect(summary.liveEnergy == nil)  // no live session: the overview looks them up in Health
+        summary.liveKcal = 0
+        #expect(summary.liveEnergy == nil)
+        summary.liveKcal = 241.5
+        #expect(summary.liveEnergy == Health.Energy(kcal: 241.5, measured: true))
     }
 }

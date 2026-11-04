@@ -81,6 +81,7 @@ struct ScreenSnapshotTests {
             ("countdown", { AnyView(CountdownView(onFinish: {}, onCancel: {})) }),
             ("workout-first-set", { workout(0, 0, false, false) }),
             ("workout-exercise-done", { workout(3, 0, false, false) }),
+            ("workout-heart-rate", { LiveMetrics.heartRate = 128; return workout(3, 0, false, false) }),
             ("workout-all-done", { allDone }),
             ("workout-rest-paused", { workout(3, 1, true, true) }),
             ("workout-rest", { workout(3, 1, true, false) }),  // leaves the session mid-workout for the screens below
@@ -100,6 +101,7 @@ struct ScreenSnapshotTests {
         let dir = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appending(path: "design/previews")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         for (name, make) in screens {
+            defer { LiveMetrics.heartRate = nil }  // only the heart rate screen has a strap paired
             let view = make()
             for variant in ["dark", "light", "ax5"] {
                 let themed = view

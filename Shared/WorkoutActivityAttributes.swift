@@ -11,6 +11,7 @@ struct WorkoutActivityAttributes: ActivityAttributes {
         var setLine: String      // e.g. "Set 2/4 · 60 kg × 8", or "All planned sets logged"
         var detail: String       // the two above in one line, for notifications
         var allSetsDone = false  // Finish saves at once; otherwise it opens the app to confirm
+        var heartRate: Int? = nil  // bpm from a paired strap during a live session (iOS 26); nil shows the clock alone
 
         var pausedAt: Date? { times.pausedAt }
     }

@@ -17,7 +17,7 @@ struct WorkoutView: View {
             }
         }
         .fullScreenCover(item: $summary) { summary in
-            WorkoutSummaryView(summary: summary, onEffort: { score in saveEffort(score, for: summary) }) { self.summary = nil }
+            WorkoutSummaryView(summary: summary, energy: summary.liveEnergy, onEffort: { score in saveEffort(score, for: summary) }) { self.summary = nil }
         }
     }
 
@@ -45,6 +45,7 @@ struct StartWorkoutView: View {
             ForEach(routines) { routine in
                 Button {
                     countingDown = routine
+                    if #available(iOS 26.0, *) { LiveWorkout.shared.prepare() }  // sensors and a heart rate strap get ready during the countdown
                 } label: {
                     VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
                         Text(routine.name.isEmpty ? "Untitled routine" : routine.name).snapText(.sectionTitle)
@@ -77,7 +78,11 @@ struct StartWorkoutView: View {
             }
         }
         .navigationTitle("Start workout")
-        .task { WorkoutActivity.end() }  // no workout running, so none should show in the Dynamic Island
+        .task {
+            // No workout is running, so none should show in the Dynamic Island, and no live Health session should run.
+            WorkoutActivity.end()
+            if #available(iOS 26.0, *) { LiveWorkout.shared.discardOrphan() }
+        }
         .fullScreenCover(item: $countingDown) { routine in
             // The session is created when the countdown ends, so the timer starts at 0:00.
             CountdownView {
@@ -86,6 +91,7 @@ struct StartWorkoutView: View {
                 countingDown = nil
             } onCancel: {
                 countingDown = nil
+                if #available(iOS 26.0, *) { LiveWorkout.shared.cancelPrepared() }
             }
         }
         .sheet(isPresented: $editingDraft, onDismiss: discardEmptyDraft) {
@@ -265,6 +271,7 @@ struct SessionView: View {
             }
         }
         .navigationTitle(session.routineName ?? "Workout")
+        .navigationBarTitleDisplayMode(.inline)  // centred above the centred clock, so the header reads as one column
         // An alert, not a confirmationDialog: on iOS 26+ the dialog pops over the button instead of centering.
         .alert(session.sets.isEmpty ? "Discard this workout?" : "Finish this workout?", isPresented: $confirmingFinish) {
             Button("Cancel", role: .cancel) {}
@@ -353,10 +360,7 @@ struct SessionView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     .accessibilityLabel(session.pausedAt == nil ? "Workout time" : "Workout paused")
-                // A workout left open overnight shows its date, so a stale one is easy to spot.
-                let today = Calendar.current.isDateInToday(session.startedAt)
-                Text("Started \(session.startedAt.formatted(date: today ? .omitted : .abbreviated, time: .shortened)) · \(session.sets.count) sets logged")
-                    .snapText(.secondary)
+                WorkoutMetaLine(heartRate: LiveMetrics.heartRate, startedAt: session.startedAt, sets: session.sets.count)
             }
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .combine)
@@ -548,11 +552,57 @@ struct SessionView: View {
     }
 
     private func finish() {
+        var liveKcal: Double?
+        if #available(iOS 26.0, *) { liveKcal = LiveWorkout.shared.measuredKcal(startedAt: session.startedAt) }  // before finish stops it
         guard session.finish(in: context) else { return }  // discarded, or a second tap
         let nextKg = nextTargets(excluding: nil).compactMapValues { target in
             target.change == .increase ? target.weightKg : nil
         }
-        onFinish(WorkoutSummary(session: session, nextKg: nextKg, targetRestSeconds: Double(goal.restSeconds), in: context))
+        var summary = WorkoutSummary(session: session, nextKg: nextKg, targetRestSeconds: Double(goal.restSeconds), in: context)
+        summary.liveKcal = liveKcal
+        onFinish(summary)
+    }
+}
+
+/// One centred line under the clock: the live heart rate (iOS 26, with a paired strap), when it started and the sets logged.
+/// The parts stack at accessibility text sizes rather than cut off.
+private struct WorkoutMetaLine: View {
+    let heartRate: Int?
+    let startedAt: Date
+    let sets: Int
+
+    var body: some View {
+        // A workout left open overnight shows its date, so a stale one is easy to spot.
+        let today = Calendar.current.isDateInToday(startedAt)
+        let started = Text("Started \(startedAt.formatted(date: today ? .omitted : .abbreviated, time: .shortened))")
+        let logged = Text("\(sets) \(sets == 1 ? "set" : "sets") logged")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Snap.Spacing.s) {
+                if let heartRate {
+                    bpm(heartRate)
+                    Text("·")
+                }
+                started
+                Text("·")
+                logged
+            }
+            VStack(spacing: Snap.Spacing.xs) {
+                if let heartRate { bpm(heartRate) }
+                started
+                logged
+            }
+        }
+        .snapText(.secondary)
+        .lineLimit(1)
+    }
+
+    private func bpm(_ value: Int) -> some View {
+        HStack(spacing: Snap.Spacing.xs) {
+            Image(systemName: "heart.fill").foregroundStyle(Color.snap.heartRate)
+            Text("\(value) bpm").monospacedDigit().contentTransition(.numericText())
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Heart rate \(value) beats per minute")
     }
 }
 

@@ -5,10 +5,23 @@ import SwiftData
 /// Starts, updates and ends the workout's Live Activity (Dynamic Island and Lock Screen).
 enum WorkoutActivity {
     /// Shows `session` as it is now, starting the activity or updating the one already running for it.
-    /// Also keeps the rest-over and idle notifications in step, since every change to the session comes through here.
-    static func sync(_ session: WorkoutSession, in context: ModelContext) {
+    /// Also keeps the rest-over and idle notifications, and on iOS 26 the live Health session, in step,
+    /// since every change to the session comes through here.
+    @MainActor static func sync(_ session: WorkoutSession, in context: ModelContext) {
+        if #available(iOS 26.0, *) {
+            LiveWorkout.shared.follow(startedAt: session.startedAt, paused: session.pausedAt != nil)
+        }
         let state = state(of: session, in: context)
         WorkoutReminders.sync(session, upNext: state.detail)
+        show(state, of: session)
+    }
+
+    /// Redraws the activity only, for a new live heart rate reading; reminders and the session stay as they are.
+    @MainActor static func refresh(_ session: WorkoutSession, in context: ModelContext) {
+        show(state(of: session, in: context), of: session)
+    }
+
+    private static func show(_ state: WorkoutActivityAttributes.ContentState, of session: WorkoutSession) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         // Going stale when the rest runs out tells the widget to go back to the workout time, even if the app is asleep by then.
         let staleDate = state.times.phase() == .resting ? state.times.restEndsAt : nil
@@ -101,7 +114,8 @@ enum WorkoutActivity {
             setLine = "All planned sets logged"
         }
         return .init(times: session.times, exercise: name, setLine: setLine,
-                     detail: name.isEmpty ? setLine : "\(setLine) · \(name)", allSetsDone: planned == nil)
+                     detail: name.isEmpty ? setLine : "\(setLine) · \(name)", allSetsDone: planned == nil,
+                     heartRate: LiveMetrics.heartRate)
     }
 }
 
@@ -113,6 +127,7 @@ extension WorkoutSession {
         guard finishedAt == nil, !isDeleted else { return false }
         WorkoutActivity.end()
         if sets.isEmpty {
+            if #available(iOS 26.0, *) { LiveWorkout.shared.discard(startedAt: startedAt) }
             context.delete(self)
             try? context.save()
             return false
@@ -120,10 +135,24 @@ extension WorkoutSession {
         finishedAt = .now
         try? context.save()
         if UserDefaults.standard.object(forKey: "saveToHealth") as? Bool ?? true {
+            let end = finishedAt ?? .now
+            let sets = sets.compactMap { set in set.exercise.map { (name: $0.name, at: set.loggedAt) } }
+            let syncID = Health.syncIdentifier(sessionStartedAt: startedAt)
+            let activeSeconds = times.elapsed(at: end)
+            // A live session (iOS 26) already started at the workout's start, so it ends at Finish.
+            if #available(iOS 26.0, *),
+               LiveWorkout.shared.finish(startedAt: startedAt, record: Health.WorkoutRecord(
+                   start: startedAt, end: end, name: routineName, activeSeconds: activeSeconds, syncIdentifier: syncID,
+                   blocks: Health.exerciseBlocks(sets, workoutStart: startedAt))) {
+                return true
+            }
+            // Saved afterwards, it covers only the time spent training, so a session left open overnight stays short.
             let window = activeWindow
-            let name = routineName
-            let activeSeconds = times.elapsed(at: finishedAt ?? .now)
-            Task { await Health.saveWorkout(start: window.start, end: window.end, name: name, activeSeconds: activeSeconds) }
+            let record = Health.WorkoutRecord(start: window.start, end: window.end, name: routineName, activeSeconds: activeSeconds,
+                                              syncIdentifier: syncID, blocks: Health.exerciseBlocks(sets, workoutStart: window.start))
+            Task { await Health.saveWorkout(record) }
+        } else if #available(iOS 26.0, *) {
+            LiveWorkout.shared.discard(startedAt: startedAt)  // Health was turned off mid-workout
         }
         return true
     }
@@ -132,7 +161,8 @@ extension WorkoutSession {
     func deleteFromHistory(in context: ModelContext) {
         let window = activeWindow
         if finishedAt != nil {
-            Task { await Health.deleteWorkout(start: window.start, end: window.end) }
+            let syncID = Health.syncIdentifier(sessionStartedAt: startedAt)
+            Task { await Health.deleteWorkout(syncIdentifier: syncID, start: window.start, end: window.end) }
         }
         context.delete(self)  // its sets go with it (cascade)
         try? context.save()

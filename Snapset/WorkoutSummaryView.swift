@@ -300,7 +300,7 @@ struct WorkoutSummaryView: View {
             }
         } else if let readings, readings.isEmpty {
             Card("Heart rate", symbol: "heart.fill", tint: Color.snap.accent) {
-                Text("No heart rate in Apple Health for this workout. Wear your Apple Watch and it shows up here.")
+                Text("No heart rate in Apple Health for this workout. Wear your Apple Watch, or pair a heart rate strap, and it shows up here.")
                     .snapText(.secondary)
             }
         }
