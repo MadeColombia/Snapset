@@ -57,11 +57,21 @@
 			);
 			target = A10000000000000000000063 /* SnapsetWidgets */;
 		};
+		A10000000000000000000075 /* Exceptions for "Snapset" folder in "Snapset" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A10000000000000000000010 /* Snapset */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10000000000000000000003 /* Snapset */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A10000000000000000000075 /* Exceptions for "Snapset" folder in "Snapset" target */,
+			);
 			path = Snapset;
 			sourceTree = "<group>";
 		};
@@ -441,6 +451,7 @@
 				DEVELOPMENT_TEAM = K72NFZ5W3A;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Snapset/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Snapset;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Snapset reads the heart rate your Apple Watch recorded during a workout.";
@@ -475,6 +486,7 @@
 				DEVELOPMENT_TEAM = K72NFZ5W3A;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Snapset/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Snapset;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Snapset reads the heart rate your Apple Watch recorded during a workout.";

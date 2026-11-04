@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>INIntentsSupported</key>
+	<array>
+		<string>INStartWorkoutIntent</string>
+		<string>INPauseWorkoutIntent</string>
+		<string>INResumeWorkoutIntent</string>
+		<string>INEndWorkoutIntent</string>
+	</array>
+	<key>NSSiriUsageDescription</key>
+	<string>Snapset lets you start, pause, resume and finish workouts with Siri, also from the Lock Screen.</string>
+</dict>
+</plist>

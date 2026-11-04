@@ -45,6 +45,7 @@ struct StartWorkoutView: View {
             ForEach(routines) { routine in
                 Button {
                     countingDown = routine
+                    if #available(iOS 26.0, *) { LiveWorkout.shared.prepare() }  // sensors and a heart rate strap get ready during the countdown
                 } label: {
                     VStack(alignment: .leading, spacing: Snap.Spacing.xs) {
                         Text(routine.name.isEmpty ? "Untitled routine" : routine.name).snapText(.sectionTitle)
@@ -77,7 +78,11 @@ struct StartWorkoutView: View {
             }
         }
         .navigationTitle("Start workout")
-        .task { WorkoutActivity.end() }  // no workout running, so none should show in the Dynamic Island
+        .task {
+            // No workout is running, so none should show in the Dynamic Island, and no live Health session should run.
+            WorkoutActivity.end()
+            if #available(iOS 26.0, *) { LiveWorkout.shared.discardOrphan() }
+        }
         .fullScreenCover(item: $countingDown) { routine in
             // The session is created when the countdown ends, so the timer starts at 0:00.
             CountdownView {
@@ -86,6 +91,7 @@ struct StartWorkoutView: View {
                 countingDown = nil
             } onCancel: {
                 countingDown = nil
+                if #available(iOS 26.0, *) { LiveWorkout.shared.cancelPrepared() }
             }
         }
         .sheet(isPresented: $editingDraft, onDismiss: discardEmptyDraft) {

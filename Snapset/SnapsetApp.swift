@@ -4,6 +4,7 @@ import SnapsetUI
 
 @main
 struct SnapsetApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     let container: ModelContainer
 
     init() {
@@ -18,6 +19,16 @@ struct SnapsetApp: App {
         // Read by RootView (Workout tab) and SessionView (the sheet), also when this launch was the tap itself.
         LogSetIntent.handler = { UserDefaults.standard.set(true, forKey: "openLogSet") }
         ConfirmFinishIntent.handler = { UserDefaults.standard.set(true, forKey: "confirmFinish") }
+        WorkoutIntentHandler.start = { SiriWorkout.start(named: $0, in: context) }
+        WorkoutIntentHandler.pause = { SiriWorkout.setPaused($0, in: context) }
+        WorkoutIntentHandler.end = { SiriWorkout.finish(in: context) }
+        LiveMetrics.onChange = {
+            guard let session = SiriWorkout.active(in: context) else { return }
+            WorkoutActivity.refresh(session, in: context)
+            if #available(iOS 26.0, *) {  // a workout begun while the last one was saving gets its own live session
+                LiveWorkout.shared.follow(startedAt: session.startedAt, paused: session.pausedAt != nil)
+            }
+        }
     }
 
     var body: some Scene {
@@ -25,6 +36,46 @@ struct SnapsetApp: App {
             RootView()
         }
         .modelContainer(container)
+    }
+}
+
+/// What Siri's workout intents do to the workout, the same as the buttons in the app.
+@MainActor
+enum SiriWorkout {
+    static func active(in context: ModelContext) -> WorkoutSession? {
+        var descriptor = FetchDescriptor(predicate: WorkoutSession.isActive, sortBy: [SortDescriptor(\.startedAt, order: .reverse)])
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+
+    /// Starts the routine whose name Siri heard, ignoring case and accents. With no name, the app opens to pick one.
+    static func start(named name: String?, in context: ModelContext) -> WorkoutIntentHandler.Outcome {
+        guard active(in: context) == nil else { return .alreadyRunning }
+        guard let name = name?.trimmingCharacters(in: .whitespaces), !name.isEmpty else { return .openApp }
+        let routines = (try? context.fetch(FetchDescriptor<Routine>())) ?? []
+        guard let routine = routines.first(where: { $0.name.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame })
+        else { return .noMatch }
+        let session = WorkoutSession(routine: routine)
+        context.insert(session)
+        try? context.save()
+        WorkoutActivity.sync(session, in: context)
+        return .done
+    }
+
+    static func setPaused(_ paused: Bool, in context: ModelContext) -> WorkoutIntentHandler.Outcome {
+        guard let session = active(in: context) else { return .noWorkout }
+        if (session.pausedAt != nil) != paused {
+            session.togglePause()
+            try? context.save()
+        }
+        WorkoutActivity.sync(session, in: context)
+        return .done
+    }
+
+    static func finish(in context: ModelContext) -> WorkoutIntentHandler.Outcome {
+        guard let session = active(in: context) else { return .noWorkout }
+        session.finish(in: context)
+        return .done
     }
 }
 

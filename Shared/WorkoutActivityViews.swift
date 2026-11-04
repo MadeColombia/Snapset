@@ -98,8 +98,8 @@ struct WorkoutBadge<Logo: View>: View {
     }
 }
 
-/// The Lock Screen (and notification banner) Live Activity: phase and routine, a big clock in the phase colour,
-/// and the next set underneath. While resting, the big clock is the rest and the workout time runs on, small, top right.
+/// The Lock Screen (and notification banner) Live Activity: phase and routine, the live heart rate when there is one,
+/// a big clock in the phase colour, and the next set underneath. While resting, the big clock is the rest and the workout time runs on, small, top right.
 struct WorkoutLockScreenView<Logo: View>: View {
     let routineName: String
     let state: WorkoutActivityAttributes.ContentState
@@ -120,9 +120,19 @@ struct WorkoutLockScreenView<Logo: View>: View {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Color.snap.textSecondary)
                         .lineLimit(1)
+                    if state.heartRate != nil || state.times.restRemaining() != nil {
+                        Spacer(minLength: 4)
+                    }
+                    if let bpm = state.heartRate {
+                        Label("\(bpm)", systemImage: "heart.fill")
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.snap.textSecondary)
+                            .labelStyle(.titleAndIcon)
+                            .accessibilityLabel("Heart rate \(bpm) beats per minute")
+                    }
                     if state.times.restRemaining() != nil {
                         // The big clock shows the rest; the total keeps its place up here, so the activity time stays clear.
-                        Spacer(minLength: 4)
                         ElapsedTime(times: state.times)
                             .font(.caption.weight(.semibold))
                             .monospacedDigit()
