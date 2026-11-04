@@ -74,7 +74,7 @@ struct ScreenSnapshotTests {
             session.sets = (0..<legSets).map { SetEntry(exercise: legs, weightKg: 100, reps: 12, loggedAt: .now.addingTimeInterval(Double($0 - 4) * 150)) }
                 + (0..<pressSets).map { _ in SetEntry(exercise: press, weightKg: 47.5, reps: 12) }
             try? context.save()
-            return AnyView(NavigationStack { SessionView(session: session) { _, _ in } })
+            return AnyView(NavigationStack { SessionView(session: session) { _ in } })
         }
         let screens: [(String, () -> AnyView)] = [
             ("start-workout", { AnyView(NavigationStack { StartWorkoutView() }) }),
@@ -84,6 +84,8 @@ struct ScreenSnapshotTests {
             ("workout-all-done", { allDone }),
             ("workout-rest-paused", { workout(3, 1, true, true) }),
             ("workout-rest", { workout(3, 1, true, false) }),  // leaves the session mid-workout for the screens below
+            ("workout-summary", { summaryScreen(heartRate: true) }),
+            ("workout-summary-no-heart-rate", { summaryScreen(heartRate: false) }),
             ("set-confirm", { AnyView(SetConfirmView(exercise: press, targetKg: 50, targetReps: 8) { _, _ in }) }),
             ("set-edit", { AnyView(SetConfirmView(exercise: press, editing: session.sets.first { $0.exercise === press }, onDelete: {}) { _, _ in }) }),
             ("running-bar", { AnyView(VStack { Spacer(); RunningWorkoutBar(session: session) {} }.background(Color.snap.background)) }),
@@ -119,7 +121,14 @@ struct ScreenSnapshotTests {
             done.sets += (0..<planned.targetSets).map { _ in SetEntry(exercise: exercise, weightKg: 40, reps: 12) }
         }
         try? context.save()
-        return AnyView(NavigationStack { SessionView(session: done) { _, _ in } })
+        return AnyView(NavigationStack { SessionView(session: done) { _ in } })
+    }
+
+    /// The post-workout overview, with sample heart rate or with none in Health.
+    private func summaryScreen(heartRate: Bool) -> AnyView {
+        let summary = WorkoutSummary.sample()
+        return AnyView(WorkoutSummaryView(summary: summary, heartRate: heartRate ? WorkoutSummary.sampleHeartRate(for: summary) : [],
+                                          energy: .init(kcal: heartRate ? 312 : 168, measured: heartRate)) {})
     }
 
     /// The Lock Screen Live Activity in its three phases, on a dark wallpaper-like backdrop.

@@ -8,8 +8,12 @@ public struct HeroNumberStepper: View {
     let range: ClosedRange<Double>
     let unit: String
     let editable: Bool
+    @State private var typing = false
+    @State private var draft = ""  // what is typed; read on every key so a step right after typing builds on it
+    @FocusState private var fieldFocused: Bool
 
-    /// With `editable`, the number is a text field so a weight can be typed as well as stepped.
+    /// With `editable`, tapping the number opens the keyboard so a weight can be typed as well as stepped.
+    /// Until then it is plain text, so stepping rolls the digits exactly like a non-editable stepper.
     public init(_ label: String, value: Binding<Double>, step: Double, in range: ClosedRange<Double>, unit: String, editable: Bool = false) {
         self.label = label
         self._value = value
@@ -22,7 +26,15 @@ public struct HeroNumberStepper: View {
     private static let format = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(0...2))
     private var text: String { value.formatted(Self.format) }
 
+    /// Reads a typed number in the user's locale ("47,5" or "47.5").
+    static func parse(_ typed: String) -> Double? {
+        let trimmed = typed.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        return (try? format.parseStrategy.parse(trimmed)) ?? Double(trimmed.replacingOccurrences(of: ",", with: "."))
+    }
+
     private func change(by delta: Double) {
+        typing = false  // a step ends typing, so the new number rolls in
         value = min(max(value + delta, range.lowerBound), range.upperBound)
     }
 
@@ -49,13 +61,25 @@ public struct HeroNumberStepper: View {
             stepButton("minus", label: "Less \(label.lowercased())") { change(by: -step) }
             VStack(spacing: 0) {
                 Group {
-                    if editable {
-                        TextField("0", value: $value, format: Self.format)
+                    if typing {
+                        TextField("0", text: $draft)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.center)
+                            .focused($fieldFocused)
+                            .onAppear { draft = text; fieldFocused = true }
+                            .onChange(of: draft) { _, typed in
+                                guard let number = Self.parse(typed) else { return }
+                                value = min(max(number, range.lowerBound), range.upperBound)
+                            }
+                            .onChange(of: fieldFocused) { _, focused in if !focused { typing = false } }
                             .accessibilityLabel("\(label) in \(unit)")
+                    } else if editable {
+                        Button { typing = true } label: { number }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(label), \(text) \(unit)")
+                            .accessibilityHint("Double tap to type it.")
                     } else {
-                        Text(text).contentTransition(.numericText(value: value))
+                        number
                     }
                 }
                 .snapText(.heroNumber)
@@ -71,7 +95,11 @@ public struct HeroNumberStepper: View {
             stepButton("plus", label: "More \(label.lowercased())") { change(by: step) }
         }
         .snapAnimation(Snap.Motion.quick, value: value)
-        .sensoryFeedback(Snap.Haptic.stepperChange, trigger: value)
+        .sensoryFeedback(Snap.Haptic.stepperChange, trigger: value) { _, _ in !typing }  // the keyboard already clicks
+    }
+
+    private var number: some View {
+        Text(text).contentTransition(.numericText(value: value))
     }
 
     private func stepButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {

@@ -121,8 +121,20 @@ extension WorkoutSession {
         try? context.save()
         if UserDefaults.standard.object(forKey: "saveToHealth") as? Bool ?? true {
             let window = activeWindow
-            Task { await Health.saveWorkout(start: window.start, end: window.end) }
+            let name = routineName
+            let activeSeconds = times.elapsed(at: finishedAt ?? .now)
+            Task { await Health.saveWorkout(start: window.start, end: window.end, name: name, activeSeconds: activeSeconds) }
         }
         return true
+    }
+
+    /// Removes a finished workout from history, and the workout Snapset saved for it in Apple Health.
+    func deleteFromHistory(in context: ModelContext) {
+        let window = activeWindow
+        if finishedAt != nil {
+            Task { await Health.deleteWorkout(start: window.start, end: window.end) }
+        }
+        context.delete(self)  // its sets go with it (cascade)
+        try? context.save()
     }
 }

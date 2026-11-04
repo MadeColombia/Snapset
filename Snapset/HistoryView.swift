@@ -16,6 +16,8 @@ struct HistoryView: View {
     @Query(sort: \SetEntry.loggedAt) private var allSets: [SetEntry]
     @State private var scope = Scope.all
     @State private var period = Period.quarter
+    @State private var deleting: WorkoutSession?
+    @Environment(\.modelContext) private var context
 
     var body: some View {
         // shortcut: filters in memory over every set, fine for years of one person's training; move to predicates if it lags.
@@ -87,6 +89,10 @@ struct HistoryView: View {
                                         .snapText(.secondary)
                                 }
                             }
+                            .swipeActions(allowsFullSwipe: false) {
+                                Button("Delete", systemImage: "trash", role: .destructive) { deleting = session }
+                                    .tint(.red)  // the app tint is white, which would wash the swipe out
+                            }
                         }
                     }
                     .listRowBackground(Color.snap.surface)
@@ -103,6 +109,7 @@ struct HistoryView: View {
                 }
             }
             .navigationTitle("Progress")
+            .deleteWorkoutDialog($deleting, in: context)
             .navigationDestination(for: WorkoutSession.self) { SessionDetailView(session: $0) }
             .navigationDestination(for: Exercise.self) { ExerciseDetailView(exercise: $0) }
         }
@@ -179,7 +186,10 @@ struct HistoryView: View {
 
 struct SessionDetailView: View {
     @AppStorage("weightUnit") private var unit: WeightUnit = .kg
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     let session: WorkoutSession
+    @State private var deleting: WorkoutSession?
     @State private var heartRate: (average: Double, max: Double)?
 
     var body: some View {
@@ -208,14 +218,43 @@ struct SessionDetailView: View {
                 }
                 .listRowBackground(Color.snap.surface)
             }
+
+            // At the bottom, out of the way, like Contacts and Health: a badly recorded workout is the only reason to come here.
+            Section {
+                Button(role: .destructive) { deleting = session } label: {
+                    Label("Delete workout", systemImage: "trash")
+                        .frame(maxWidth: .infinity, minHeight: Snap.Tap.min)
+                }
+                .foregroundStyle(.red)
+            }
+            .listRowBackground(Color.snap.surface)
         }
         .snapListBackground()
         .navigationTitle(session.routineName ?? "Workout")
         .navigationBarTitleDisplayMode(.inline)
+        .deleteWorkoutDialog($deleting, in: context) { dismiss() }
         .task {
             guard session.finishedAt != nil else { return }
             let window = session.activeWindow
             heartRate = await Health.heartRate(from: window.start, to: window.end)
+        }
+    }
+}
+
+private extension View {
+    /// Asks before a workout leaves history for good, in a centred alert so it reads as a decision, not a menu.
+    func deleteWorkoutDialog(_ session: Binding<WorkoutSession?>, in context: ModelContext, onDeleted: @escaping () -> Void = {}) -> some View {
+        alert("Delete this workout?", isPresented: Binding(get: { session.wrappedValue != nil },
+                                                           set: { if !$0 { session.wrappedValue = nil } }),
+              presenting: session.wrappedValue) { workout in
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                workout.deleteFromHistory(in: context)
+                session.wrappedValue = nil
+                onDeleted()
+            }
+        } message: { workout in
+            Text("\(workout.sets.count == 1 ? "Its 1 set comes" : "Its \(workout.sets.count) sets come") off your history and progress, and out of Apple Health. You can't undo this.")
         }
     }
 }
